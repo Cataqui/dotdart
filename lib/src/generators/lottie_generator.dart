@@ -1,3 +1,7 @@
+// StringBuffer.writeln returns void. Cascading void calls is valid Dart but
+// makes the code harder to read. This is a known false positive.
+// ignore_for_file: cascade_invocations
+
 import 'package:dart_style/dart_style.dart';
 
 import '../models/lottie_animation.dart';
@@ -520,14 +524,15 @@ class LottieGenerator {
     final shapes = <LottieShape>[];
 
     for (final item in group.items) {
-      if (item is LottieFill)
+      if (item is LottieFill) {
         fill = item;
-      else if (item is LottieStroke)
+      } else if (item is LottieStroke) {
         stroke = item;
-      else if (item is LottieGroupTransform)
+      } else if (item is LottieGroupTransform) {
         transform = item;
-      else
+      } else {
         shapes.add(item);
+      }
     }
 
     if (shapes.isEmpty) return;
@@ -582,8 +587,9 @@ class LottieGenerator {
       final colorRef = hasLayerOpacity
           ? 'color$colorIdx'
           : 'color$colorIdx.withValues(alpha: ${_fmt(fill.opacity / 100)})';
-      b.writeln('    final fillPaint = Paint()..color = $colorRef..style = PaintingStyle.fill;');
-      b.writeln('    canvas.drawRRect(body, fillPaint);');
+      b
+        ..writeln('    final fillPaint = Paint()..color = $colorRef..style = PaintingStyle.fill;')
+        ..writeln('    canvas.drawRRect(body, fillPaint);');
     }
 
     if (stroke != null) {
@@ -593,10 +599,11 @@ class LottieGenerator {
       final colorRef = hasLayerOpacity
           ? 'color$colorIdx'
           : 'color$colorIdx.withValues(alpha: ${_fmt(stroke.opacity / 100)})';
-      b.writeln(
-        '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
-      );
-      b.writeln('    canvas.drawRRect(body, strokePaint);');
+      b
+        ..writeln(
+          '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
+        )
+        ..writeln('    canvas.drawRRect(body, strokePaint);');
     }
   }
 
@@ -617,8 +624,9 @@ class LottieGenerator {
       final colorRef = hasLayerOpacity
           ? 'color$colorIdx'
           : 'color$colorIdx.withValues(alpha: ${_fmt(fill.opacity / 100)})';
-      b.writeln('    final fillPaint = Paint()..color = $colorRef..style = PaintingStyle.fill;');
-      b.writeln('    canvas.drawOval(rect, fillPaint);');
+      b
+        ..writeln('    final fillPaint = Paint()..color = $colorRef..style = PaintingStyle.fill;')
+        ..writeln('    canvas.drawOval(rect, fillPaint);');
     }
 
     if (stroke != null) {
@@ -628,10 +636,11 @@ class LottieGenerator {
       final colorRef = hasLayerOpacity
           ? 'color$colorIdx'
           : 'color$colorIdx.withValues(alpha: ${_fmt(stroke.opacity / 100)})';
-      b.writeln(
-        '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
-      );
-      b.writeln('    canvas.drawOval(rect, strokePaint);');
+      b
+        ..writeln(
+          '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
+        )
+        ..writeln('    canvas.drawOval(rect, strokePaint);');
     }
   }
 
@@ -669,10 +678,11 @@ class LottieGenerator {
           : 'color$colorIdx.withValues(alpha: ${_fmt(fill.opacity / 100)})';
       b.writeln('    final fillPaint = Paint()..color = $colorRef..style = PaintingStyle.fill;');
       if (fill.fillRule == 2) {
-        b.writeln('    fillPaint.style = PaintingStyle.fill;');
-        b.writeln('    final path = Path.from(_$pathName);');
-        b.writeln('    path.fillType = PathFillType.evenOdd;');
-        b.writeln('    canvas.drawPath(path, fillPaint);');
+        b
+          ..writeln('    fillPaint.style = PaintingStyle.fill;')
+          ..writeln('    final path = Path.from(_$pathName);')
+          ..writeln('    path.fillType = PathFillType.evenOdd;')
+          ..writeln('    canvas.drawPath(path, fillPaint);');
       } else {
         b.writeln('    canvas.drawPath(_$pathName, fillPaint);');
       }
@@ -685,10 +695,11 @@ class LottieGenerator {
       final colorRef = hasLayerOpacity
           ? 'color$colorIdx'
           : 'color$colorIdx.withValues(alpha: ${_fmt(stroke.opacity / 100)})';
-      b.writeln(
-        '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
-      );
-      b.writeln('    canvas.drawPath(_$pathName, strokePaint);');
+      b
+        ..writeln(
+          '    final strokePaint = Paint()..color = $colorRef..style = PaintingStyle.stroke..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
+        )
+        ..writeln('    canvas.drawPath(_$pathName, strokePaint);');
     }
   }
 

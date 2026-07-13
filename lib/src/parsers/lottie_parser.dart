@@ -1,3 +1,7 @@
+// The `if (cond) expr else expr` pattern in collection literals is intentional
+// — it always produces exactly 4 elements with fallback defaults.
+// ignore_for_file: prefer_if_elements_to_conditional_expressions
+
 import 'dart:convert';
 
 import '../models/lottie_animation.dart';

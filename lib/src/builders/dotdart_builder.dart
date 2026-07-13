@@ -16,7 +16,7 @@ import '../parsers/lottie_parser.dart';
 /// and the output directory. Writes a manifest consumed by
 /// [_DotdartPostProcessBuilder].
 Builder dotdartBuilder(BuilderOptions options) {
-  return _DotdartBuilder(options);
+  return _DotdartBuilder();
 }
 
 /// Materializes generated `.g.dart` files from the manifest written by
@@ -26,11 +26,9 @@ PostProcessBuilder dotdartPostProcessBuilder(BuilderOptions options) {
 }
 
 class _DotdartBuilder implements Builder {
-  _DotdartBuilder(this._options);
+  _DotdartBuilder();
 
   static const _manifestExtension = '.dotdart.manifest.json';
-
-  final BuilderOptions _options;
 
   @override
   Map<String, List<String>> get buildExtensions => {
