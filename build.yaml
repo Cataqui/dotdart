@@ -1,0 +1,15 @@
+builders:
+  dotdart:
+    import: "package:dotdart/dotdart.dart"
+    builder_factories: ["dotdartBuilder"]
+    build_extensions: {"$package$": [".dotdart.manifest.json"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["dotdart|dotdart_post_process"]
+
+post_process_builders:
+  dotdart_post_process:
+    import: "package:dotdart/dotdart.dart"
+    builder_factory: "dotdartPostProcessBuilder"
+    input_extensions: [".dotdart.manifest.json"]
+    build_to: source
