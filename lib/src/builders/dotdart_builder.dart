@@ -15,12 +15,32 @@ import '../parsers/lottie_parser.dart';
 /// Reads the `dotdart:` section from `pubspec.yaml` to find asset files
 /// and the output directory. Writes a manifest consumed by
 /// [_DotdartPostProcessBuilder].
+///
+/// This function is referenced by `build.yaml`; application code does not call
+/// it directly.
+///
+/// ```yaml
+/// builders:
+///   dotdart:
+///     import: "package:dotdart/dotdart.dart"
+///     builder_factories: ["dotdartBuilder"]
+/// ```
 Builder dotdartBuilder(BuilderOptions options) {
   return _DotdartBuilder();
 }
 
 /// Materializes generated `.g.dart` files from the manifest written by
 /// [_DotdartBuilder].
+///
+/// This function is referenced by `build.yaml`; application code does not call
+/// it directly.
+///
+/// ```yaml
+/// post_process_builders:
+///   dotdart_post_process:
+///     import: "package:dotdart/dotdart.dart"
+///     builder_factory: "dotdartPostProcessBuilder"
+/// ```
 PostProcessBuilder dotdartPostProcessBuilder(BuilderOptions options) {
   return _DotdartPostProcessBuilder();
 }
@@ -29,6 +49,7 @@ class _DotdartBuilder implements Builder {
   _DotdartBuilder();
 
   static const _manifestExtension = '.dotdart.manifest.json';
+  static const _defaultOutputDir = 'lib/gen/';
 
   @override
   Map<String, List<String>> get buildExtensions => {
@@ -54,8 +75,8 @@ class _DotdartBuilder implements Builder {
     final packageRoot = await _packageRoot(buildStep);
     final outputs = <_ManifestOutput>[];
 
-    for (final folder in config.lottieFolders) {
-      final glob = folder.endsWith('/') ? '$folder*.json' : '$folder/*.json';
+    for (final input in config.lottieInputs) {
+      final glob = input.endsWith('.json') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.json';
       await for (final assetId in buildStep.findAssets(Glob(glob))) {
         final content = await buildStep.readAsString(assetId);
         if (!_isLottieJson(content)) continue;
@@ -68,8 +89,8 @@ class _DotdartBuilder implements Builder {
         final generator = LottieGenerator(result.animation, assetId.path);
         final output = generator.generate();
 
-        final fileName = p.basename(assetId.path).replaceAll('.json', '.g.dart');
-        final outputPath = '${config.outputDir}$fileName';
+        final fileName = '${p.basenameWithoutExtension(assetId.path)}.g.dart';
+        final outputPath = p.posix.join(config.outputDir, fileName);
         outputs.add(_ManifestOutput(path: outputPath, contents: output));
       }
     }
@@ -92,31 +113,53 @@ class _DotdartBuilder implements Builder {
     final dotdart = doc['dotdart'];
     if (dotdart is! YamlMap) return null;
 
-    final output = dotdart['output'] as String? ?? 'lib/gen/';
-    final outputDir = output.endsWith('/') ? output : '$output/';
+    final output = dotdart['output'];
+    if (output != null && output is! String) {
+      throw const FormatException('dotdart.output must be a relative directory path.');
+    }
+
+    final outputPath = output as String? ?? _defaultOutputDir;
+    final outputDir = _normalizePackagePath(outputPath, fieldName: 'dotdart.output');
 
     final lottieRaw = dotdart['lottie'];
-    final lottieFolders = <String>[];
+    final lottieInputs = <String>[];
     if (lottieRaw is YamlList) {
       for (final entry in lottieRaw) {
-        final s = entry.toString();
-        if (s.isNotEmpty) lottieFolders.add(s);
+        if (entry is! String) {
+          throw const FormatException('dotdart.lottie entries must be relative file or directory paths.');
+        }
+
+        final input = _normalizePackagePath(entry, fieldName: 'dotdart.lottie');
+        if (input.isNotEmpty) lottieInputs.add(input);
       }
     }
 
-    return _DotdartConfig(outputDir: outputDir, lottieFolders: lottieFolders);
+    return _DotdartConfig(outputDir: outputDir, lottieInputs: lottieInputs);
   }
 
   bool _isLottieJson(String content) {
     try {
-      return content.contains('"v"') &&
-          content.contains('"fr"') &&
-          content.contains('"w"') &&
-          content.contains('"h"') &&
-          content.contains('"layers"');
+      final json = jsonDecode(content);
+      if (json is! Map<String, Object?>) return false;
+
+      return json.containsKey('v') &&
+          json.containsKey('fr') &&
+          json.containsKey('w') &&
+          json.containsKey('h') &&
+          json.containsKey('layers');
     } catch (_) {
       return false;
     }
+  }
+
+  String _normalizePackagePath(String path, {required String fieldName}) {
+    final normalized = p.posix.normalize(path.trim());
+    if (normalized.isEmpty || normalized == '.') return '';
+    if (p.posix.isAbsolute(normalized) || normalized == '..' || normalized.startsWith('../')) {
+      throw FormatException('$fieldName must stay inside the package. Received "$path".');
+    }
+
+    return normalized;
   }
 
   Future<void> _writeManifest(BuildStep buildStep, String? packageRoot, List<_ManifestOutput> outputs) {
@@ -162,9 +205,9 @@ class _DotdartPostProcessBuilder extends PostProcessBuilder {
 }
 
 class _DotdartConfig {
-  const _DotdartConfig({required this.outputDir, required this.lottieFolders});
+  const _DotdartConfig({required this.outputDir, required this.lottieInputs});
   final String outputDir;
-  final List<String> lottieFolders;
+  final List<String> lottieInputs;
 }
 
 class _ManifestOutput {

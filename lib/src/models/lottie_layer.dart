@@ -62,11 +62,7 @@ class LottieLayer {
 /// When [animated] is `false`, the value is [staticValue].
 /// When [animated] is `true`, the value is interpolated from [keyframes].
 class LottieAnimatedScalar {
-  const LottieAnimatedScalar({
-    required this.animated,
-    this.staticValue = 0,
-    this.keyframes = const [],
-  });
+  const LottieAnimatedScalar({required this.animated, this.staticValue = 0, this.keyframes = const []});
 
   /// Whether this property has keyframe animation.
   final bool animated;

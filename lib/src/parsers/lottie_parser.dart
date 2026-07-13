@@ -20,9 +20,29 @@ class DotdartUnsupportedFeatureException implements Exception {
   String toString() => 'DotdartUnsupportedFeatureException: $message';
 }
 
+/// Exception thrown when a file looks like Lottie JSON but is structurally invalid.
+class DotdartInvalidLottieException implements FormatException {
+  /// Creates an invalid-Lottie exception with a package-consumer-facing [message].
+  const DotdartInvalidLottieException(this.message);
+
+  @override
+  final String message;
+
+  @override
+  int? get offset => null;
+
+  @override
+  Object? get source => null;
+
+  @override
+  String toString() => 'DotdartInvalidLottieException: $message';
+}
+
 /// Parses a Lottie JSON string into a [LottieAnimation] model.
 ///
 /// Throws [DotdartUnsupportedFeatureException] for features not yet supported.
+/// Throws [DotdartInvalidLottieException] when required Lottie metadata is
+/// missing or malformed.
 class LottieParser {
   /// Parses [jsonString] as a Lottie animation.
   ///
@@ -30,15 +50,24 @@ class LottieParser {
   /// `h`, `layers`). Non-shape layers (`ty` other than 4) are skipped with a
   /// warning message returned in the result.
   static LottieParseResult parse(String jsonString) {
-    final root = json.decode(jsonString) as Map<String, dynamic>;
+    final decoded = json.decode(jsonString);
+    if (decoded is! Map<String, dynamic>) {
+      throw const DotdartInvalidLottieException('Expected the Lottie file root to be a JSON object.');
+    }
+
+    final root = decoded;
 
     final warnings = <String>[];
 
-    final fr = (root['fr'] as num?)?.toDouble();
-    final w = (root['w'] as num?)?.toInt();
-    final h = (root['h'] as num?)?.toInt();
+    final fr = _requiredPositiveDouble(root, 'fr');
+    final w = _requiredPositiveInt(root, 'w');
+    final h = _requiredPositiveInt(root, 'h');
     final ip = (root['ip'] as num?)?.toInt() ?? 0;
-    final op = (root['op'] as num?)?.toInt() ?? 0;
+    final op = _requiredPositiveInt(root, 'op');
+    if (op <= ip) {
+      throw DotdartInvalidLottieException('Expected Lottie "op" ($op) to be greater than "ip" ($ip).');
+    }
+
     final nm = root['nm'] as String? ?? '';
     final layersRaw = root['layers'] as List<dynamic>? ?? [];
 
@@ -52,9 +81,9 @@ class LottieParser {
 
     return LottieParseResult(
       animation: LottieAnimation(
-        width: w ?? 0,
-        height: h ?? 0,
-        frameRate: fr ?? 60,
+        width: w,
+        height: h,
+        frameRate: fr,
         inPoint: ip,
         outPoint: op,
         name: nm,
@@ -264,7 +293,12 @@ class LottieParser {
     }
 
     final k = raw['k'] as List<dynamic>? ?? [];
-    final keyframes = k.map((kf) => _parseScalarKeyframe(kf as Map<String, dynamic>)).toList();
+    final keyframes = <LottieScalarKeyframe>[];
+    for (var index = 0; index < k.length; index++) {
+      final keyframe = k[index] as Map<String, dynamic>;
+      final nextKeyframe = index + 1 < k.length ? k[index + 1] as Map<String, dynamic> : null;
+      keyframes.add(_parseScalarKeyframe(keyframe, nextKeyframe));
+    }
     return LottieAnimatedScalar(animated: true, keyframes: keyframes);
   }
 
@@ -281,33 +315,37 @@ class LottieParser {
     }
 
     final k = raw['k'] as List<dynamic>? ?? [];
-    final keyframes = k.map((kf) {
-      final kfMap = kf as Map<String, dynamic>;
+    final keyframes = <LottieScalarKeyframe>[];
+    for (var keyframeIndex = 0; keyframeIndex < k.length; keyframeIndex++) {
+      final kfMap = k[keyframeIndex] as Map<String, dynamic>;
+      final nextKeyframe = keyframeIndex + 1 < k.length ? k[keyframeIndex + 1] as Map<String, dynamic> : null;
       final s = kfMap['s'] as List<dynamic>? ?? [];
       final e = kfMap['e'] as List<dynamic>?;
       final o = kfMap['o'] as Map<String, dynamic>?;
-      final i = kfMap['i'] as Map<String, dynamic>?;
+      final i = _incomingEasingFor(keyframe: kfMap, nextKeyframe: nextKeyframe);
       final h = (kfMap['h'] as num?)?.toInt() ?? 0;
 
-      return LottieScalarKeyframe(
-        time: (kfMap['t'] as num).toDouble(),
-        start: (s[index] as num).toDouble(),
-        end: e != null ? (e[index] as num).toDouble() : null,
-        outX: _extractEasingValue(o, 'x', index),
-        outY: _extractEasingValue(o, 'y', index),
-        inX: _extractEasingValue(i, 'x', index),
-        inY: _extractEasingValue(i, 'y', index),
-        hold: h == 1,
+      keyframes.add(
+        LottieScalarKeyframe(
+          time: (kfMap['t'] as num).toDouble(),
+          start: (s[index] as num).toDouble(),
+          end: e != null ? (e[index] as num).toDouble() : null,
+          outX: _extractEasingValue(o, 'x', index),
+          outY: _extractEasingValue(o, 'y', index),
+          inX: _extractEasingValue(i, 'x', index),
+          inY: _extractEasingValue(i, 'y', index),
+          hold: h == 1,
+        ),
       );
-    }).toList();
+    }
     return LottieAnimatedScalar(animated: true, keyframes: keyframes);
   }
 
-  static LottieScalarKeyframe _parseScalarKeyframe(Map<String, dynamic> raw) {
+  static LottieScalarKeyframe _parseScalarKeyframe(Map<String, dynamic> raw, Map<String, dynamic>? nextRaw) {
     final s = raw['s'] as List<dynamic>? ?? [];
     final e = raw['e'] as List<dynamic>?;
     final o = raw['o'] as Map<String, dynamic>?;
-    final i = raw['i'] as Map<String, dynamic>?;
+    final i = _incomingEasingFor(keyframe: raw, nextKeyframe: nextRaw);
     final h = (raw['h'] as num?)?.toInt() ?? 0;
 
     return LottieScalarKeyframe(
@@ -320,6 +358,13 @@ class LottieParser {
       inY: _extractEasingValue(i, 'y', 0),
       hold: h == 1,
     );
+  }
+
+  static Map<String, dynamic>? _incomingEasingFor({
+    required Map<String, dynamic> keyframe,
+    required Map<String, dynamic>? nextKeyframe,
+  }) {
+    return keyframe['i'] as Map<String, dynamic>? ?? nextKeyframe?['i'] as Map<String, dynamic>?;
   }
 
   /// Extracts a static value from a property like `{"a": 0, "k": [value]}`.
@@ -365,6 +410,24 @@ class LottieParser {
       return null;
     }
     return (val as num?)?.toDouble();
+  }
+
+  static double _requiredPositiveDouble(Map<String, dynamic> raw, String key) {
+    final value = raw[key];
+    if (value is! num || value <= 0) {
+      throw DotdartInvalidLottieException('Expected Lottie "$key" to be a positive number.');
+    }
+
+    return value.toDouble();
+  }
+
+  static int _requiredPositiveInt(Map<String, dynamic> raw, String key) {
+    final value = raw[key];
+    if (value is! num || value <= 0) {
+      throw DotdartInvalidLottieException('Expected Lottie "$key" to be a positive number.');
+    }
+
+    return value.toInt();
   }
 }
 

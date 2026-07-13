@@ -14,12 +14,7 @@ sealed class LottieShape {
 
 /// A bezier path shape (`ty: "sh"`).
 class LottiePath extends LottieShape {
-  const LottiePath({
-    required this.vertices,
-    required this.inTangents,
-    required this.outTangents,
-    required this.closed,
-  });
+  const LottiePath({required this.vertices, required this.inTangents, required this.outTangents, required this.closed});
 
   /// Vertex positions, each as `[x, y]`.
   final List<List<double>> vertices;
