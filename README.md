@@ -66,7 +66,6 @@ class OnboardingHint extends StatelessWidget {
   Widget build(BuildContext context) {
     return const SwipeUpOnboarding(
       width: 160,
-      animated: true,
       respectDisableAnimations: true,
       color1: Color(0xFFFF4A4B),
     );
@@ -74,12 +73,14 @@ class OnboardingHint extends StatelessWidget {
 }
 ```
 
-Pass `animated: false` when you want the first frame only.
+Pass `progress` when you want to drive or pin the animation yourself. Progress
+uses the full normalized timeline: `0` is the first frame and `1` is the last
+frame. When `progress` is supplied, automatic playback stops.
 
 ```dart
 const SwipeUpOnboarding(
   width: 160,
-  animated: false,
+  progress: 0.5,
 )
 ```
 

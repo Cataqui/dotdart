@@ -165,11 +165,18 @@ void main() {
       expect(code, contains('Duration(milliseconds: 1000)'));
     });
 
-    test('when generating code, it should include playback control properties', () {
+    test('when generating code, it should include manual progress playback control', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generate();
 
-      expect(code, allOf(contains('final bool animated;'), contains('final bool respectDisableAnimations;')));
+      expect(code, allOf(contains('final double? progress;'), contains('final bool respectDisableAnimations;')));
+    });
+
+    test('when generating code, it should replace the animated property with nullable progress', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generate();
+
+      expect(code, isNot(contains('final bool animated;')));
     });
 
     test('when generating code, it should include the painter with reusable paints', () {
@@ -250,6 +257,34 @@ void main() {
           contains('(MediaQuery.maybeDisableAnimationsOf(context) ?? false)'),
         ),
       );
+    });
+
+    test('when generating code with manual progress, it should stop automatic playback', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generate();
+
+      expect(
+        code,
+        allOf(
+          contains('return widget.progress == null &&'),
+          contains('_canAnimateForLifecycle &&'),
+          contains('!disableAnimations;'),
+        ),
+      );
+    });
+
+    test('when generating code with manual progress, it should clamp the fixed progress before painting', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generate();
+
+      expect(code, contains('fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),'));
+    });
+
+    test('when generating code with manual progress, it should repaint when the fixed progress changes', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generate();
+
+      expect(code, contains('oldDelegate._fixedProgress != _fixedProgress'));
     });
 
     test('when generating code with layer opacity, it should apply opacity to regular paints without saveLayer', () {

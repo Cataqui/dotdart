@@ -9,7 +9,8 @@
 - Design the package for multiple asset types — each type gets its own parser
   and generator.
 - Configuration via `dotdart:` section in `pubspec.yaml` with type-keyed entries (`lottie:`, future `svg:`).
-- Generated widgets: `StatefulWidget` + `CustomPainter`, lifecycle-aware, `animated` prop, per-color props.
+- Generated widgets: `StatefulWidget` + `CustomPainter`, lifecycle-aware, nullable `progress` prop for
+  manual timeline control, per-color props.
 - Optimize generated animation hot paths with reusable paints, prebuilt static
   geometry and compound paths, specialized scalar evaluators, exact bezier
   result reuse, constant transform folding, and redundant transform removal.

@@ -142,7 +142,7 @@ class LottieGenerator {
     b.writeln('    super.key,');
     b.writeln('    this.width,');
     b.writeln('    this.height,');
-    b.writeln('    this.animated = true,');
+    b.writeln('    this.progress,');
     b.writeln('    this.respectDisableAnimations = true,');
 
     for (final color in colors) {
@@ -170,8 +170,12 @@ class LottieGenerator {
     b.writeln('  /// even when that overflows tighter parent constraints.');
     b.writeln('  final double? height;');
     b.writeln();
-    b.writeln('  /// Whether the animation should play. When false, renders a static frame.');
-    b.writeln('  final bool animated;');
+    b.writeln('  /// Fixed animation progress from 0 to 1.');
+    b.writeln('  ///');
+    b.writeln('  /// When null, the generated widget loops automatically. When supplied,');
+    b.writeln('  /// playback stops and the painter renders exactly this timeline position.');
+    b.writeln('  /// Values outside 0 to 1 are clamped before painting.');
+    b.writeln('  final double? progress;');
     b.writeln();
     b.writeln('  /// Whether platform reduced-motion settings should pause playback.');
     b.writeln('  final bool respectDisableAnimations;');
@@ -203,7 +207,7 @@ class LottieGenerator {
     b.writeln(
       '    final disableAnimations = widget.respectDisableAnimations && (MediaQuery.maybeDisableAnimationsOf(context) ?? false);',
     );
-    b.writeln('    return widget.animated && _canAnimateForLifecycle && !disableAnimations;');
+    b.writeln('    return widget.progress == null && _canAnimateForLifecycle && !disableAnimations;');
     b.writeln('  }');
     b.writeln();
     b.writeln('  void _syncController() {');
@@ -232,7 +236,8 @@ class LottieGenerator {
     b.writeln('      child: RepaintBoundary(');
     b.writeln('        child: CustomPaint(');
     b.writeln('          painter: _${className}Painter(');
-    b.writeln('            progress: _shouldAnimate() ? _controller : null,');
+    b.writeln('            animationProgress: _shouldAnimate() ? _controller : null,');
+    b.writeln('            fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),');
 
     for (final color in colors) {
       final hex = _colorToHex(color.r, color.g, color.b, color.a);
@@ -319,17 +324,20 @@ class LottieGenerator {
     final curves = _extractCurves();
     b.writeln('class _${className}Painter extends CustomPainter {');
     b.writeln('  _${className}Painter({');
-    b.writeln('    Animation<double>? progress,');
+    b.writeln('    required double fixedProgress,');
+    b.writeln('    Animation<double>? animationProgress,');
 
     for (final color in colors) {
       b.writeln('    required this.color${color.index},');
     }
 
-    b.writeln('  })  : _progress = progress,');
-    b.writeln('        super(repaint: progress);');
+    b.writeln('  })  : _fixedProgress = fixedProgress,');
+    b.writeln('        _animationProgress = animationProgress,');
+    b.writeln('        super(repaint: animationProgress);');
     b.writeln();
 
-    b.writeln('  final Animation<double>? _progress;');
+    b.writeln('  final double _fixedProgress;');
+    b.writeln('  final Animation<double>? _animationProgress;');
     b.writeln();
 
     // Color fields
@@ -354,7 +362,8 @@ class LottieGenerator {
     // ── Paint method ──
     b.writeln('  @override');
     b.writeln('  void paint(Canvas canvas, Size size) {');
-    b.writeln('    final frame = (_progress?.value ?? 0) * $className._totalFrames;');
+    b.writeln('    final progress = _animationProgress?.value ?? _fixedProgress;');
+    b.writeln('    final frame = progress * $className._totalFrames;');
     b.writeln('    final scaleX = size.width / $className._lottieWidth;');
     b.writeln('    final scaleY = size.height / $className._lottieHeight;');
     b.writeln();
@@ -380,7 +389,8 @@ class LottieGenerator {
     // ── shouldRepaint ──
     b.writeln('  @override');
     b.writeln('  bool shouldRepaint(covariant _${className}Painter oldDelegate) {');
-    b.writeln('    return oldDelegate._progress != _progress');
+    b.writeln('    return oldDelegate._fixedProgress != _fixedProgress');
+    b.writeln('        || oldDelegate._animationProgress != _animationProgress');
 
     for (final color in colors) {
       b.writeln('        || oldDelegate.color${color.index} != color${color.index}');
