@@ -217,7 +217,7 @@ void main() {
         'op': 30,
         'nm': 'With Null Layer',
         'layers': [
-          {'ty': 0, 'nm': 'Null Layer', 'ip': 0, 'op': 30, 'ks': {}, 'shapes': []},
+          <String, dynamic>{'ty': 0, 'nm': 'Null Layer', 'ip': 0, 'op': 30, 'ks': <String, dynamic>{}, 'shapes': <Object?>[]},
           {
             'ty': 4,
             'nm': 'Shape Layer',
@@ -239,7 +239,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -316,7 +316,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -368,7 +368,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -427,7 +427,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -490,7 +490,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -542,7 +542,7 @@ void main() {
                 'k': [100, 100],
               },
             },
-            'shapes': [],
+            'shapes': <Object?>[],
           },
         ],
       });
@@ -943,7 +943,7 @@ void main() {
         'ip': 10,
         'op': 10,
         'nm': 'Bad Range',
-        'layers': [],
+        'layers': <Object?>[],
       });
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
@@ -958,7 +958,7 @@ void main() {
         'ip': 20,
         'op': 10,
         'nm': 'Bad Range',
-        'layers': [],
+        'layers': <Object?>[],
       });
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
@@ -1031,13 +1031,13 @@ void main() {
     });
 
     test('when parse is called with missing frame rate, it should throw an invalid Lottie error', () {
-      final json = jsonEncode({'v': '5.5.2', 'w': 100, 'h': 100, 'ip': 0, 'op': 30, 'layers': []});
+      final json = jsonEncode(<String, dynamic>{'v': '5.5.2', 'w': 100, 'h': 100, 'ip': 0, 'op': 30, 'layers': <Object?>[]});
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
     });
 
     test('when parse is called with missing height, it should throw an invalid Lottie error', () {
-      final json = jsonEncode({'v': '5.5.2', 'fr': 30, 'w': 100, 'ip': 0, 'op': 30, 'layers': []});
+      final json = jsonEncode(<String, dynamic>{'v': '5.5.2', 'fr': 30, 'w': 100, 'ip': 0, 'op': 30, 'layers': <Object?>[]});
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
     });

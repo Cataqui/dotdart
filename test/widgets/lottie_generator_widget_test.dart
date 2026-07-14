@@ -121,9 +121,9 @@ class _MockRectPainter extends CustomPainter {
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    canvas.drawRRect(body, strokePaint);
-
-    canvas.restore();
+    canvas
+      ..drawRRect(body, strokePaint)
+      ..restore();
   }
 
   @override
@@ -153,9 +153,9 @@ class _MockEllipsePainter extends CustomPainter {
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    canvas.drawOval(rect, strokePaint);
-
-    canvas.restore();
+    canvas
+      ..drawOval(rect, strokePaint)
+      ..restore();
   }
 
   @override
@@ -188,9 +188,9 @@ class _MockPathPainter extends CustomPainter {
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.butt
       ..strokeJoin = StrokeJoin.bevel;
-    canvas.drawPath(path, strokePaint);
-
-    canvas.restore();
+    canvas
+      ..drawPath(path, strokePaint)
+      ..restore();
   }
 
   @override
@@ -216,9 +216,9 @@ class _MockTransformedPainter extends CustomPainter {
     final fillPaint = Paint()
       ..color = const Color(0xFFFF0000)
       ..style = PaintingStyle.fill;
-    canvas.drawRRect(body, fillPaint);
-
-    canvas.restore();
+    canvas
+      ..drawRRect(body, fillPaint)
+      ..restore();
   }
 
   @override
