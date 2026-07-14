@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:dotdart/src/models/lottie_animation.dart';
-import 'package:dotdart/src/models/lottie_layer.dart';
 import 'package:dotdart/src/models/lottie_shape.dart';
 import 'package:dotdart/src/parsers/lottie_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
