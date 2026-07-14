@@ -6,7 +6,7 @@ import 'package:dotdart/src/models/lottie_shape.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final animation = LottieAnimation(
+  const animation = LottieAnimation(
     width: 200,
     height: 200,
     frameRate: 60,
@@ -36,14 +36,14 @@ void main() {
             ],
           ),
         ],
-        opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
-        rotation: const LottieAnimatedScalar(animated: false, staticValue: 0),
-        positionX: const LottieAnimatedScalar(animated: false, staticValue: 100),
-        positionY: const LottieAnimatedScalar(animated: false, staticValue: 100),
+        opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
+        rotation: LottieAnimatedScalar(animated: false, staticValue: 0),
+        positionX: LottieAnimatedScalar(animated: false, staticValue: 100),
+        positionY: LottieAnimatedScalar(animated: false, staticValue: 100),
         anchorX: 0,
         anchorY: 0,
-        scaleX: const LottieAnimatedScalar(animated: false, staticValue: 100),
-        scaleY: const LottieAnimatedScalar(animated: false, staticValue: 100),
+        scaleX: LottieAnimatedScalar(animated: false, staticValue: 100),
+        scaleY: LottieAnimatedScalar(animated: false, staticValue: 100),
         inPoint: 0,
         outPoint: 60,
       ),
@@ -99,7 +99,14 @@ void main() {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generate();
 
-      expect(code, allOf(contains("import 'dart:math' as math;"), contains("import 'package:flutter/material.dart';")));
+      expect(
+        code,
+        allOf(
+          contains("import 'dart:math' as math;"),
+          contains("import 'package:flutter/material.dart';"),
+          contains("import 'package:flutter/rendering.dart' show OverflowBoxFit;"),
+        ),
+      );
     });
 
     test('when generating code, it should include the lottie dimensions', () {
@@ -156,6 +163,13 @@ void main() {
           contains('child: _buildPainter(width: width, height: height)'),
         ),
       );
+    });
+
+    test('when generating code with an explicit size inside a column, it should defer layout size to the child', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generate();
+
+      expect(code, contains('fit: OverflowBoxFit.deferToChild'));
     });
 
     test('when generating code, it should include the loop duration', () {
@@ -295,7 +309,7 @@ void main() {
     });
 
     test('when generating code for an open path, it should not close the generated path', () {
-      final openPathAnimation = LottieAnimation(
+      const openPathAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -310,15 +324,15 @@ void main() {
                 name: 'Open Path Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [10, 10],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
@@ -340,7 +354,7 @@ void main() {
 
   group('LottieGenerator ellipse', () {
     test('when generating code with an ellipse shape, it should include drawOval', () {
-      final ellipseAnimation = LottieAnimation(
+      const ellipseAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -360,7 +374,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -377,7 +391,7 @@ void main() {
     });
 
     test('when generating code for an ellipse with stroke, it should include strokePaint', () {
-      final ellipseAnimation = LottieAnimation(
+      const ellipseAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -397,7 +411,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -410,7 +424,7 @@ void main() {
 
   group('LottieGenerator path shapes', () {
     test('when generating code with a static path, it should compile path commands without retaining point lists', () {
-      final staticPathAnimation = LottieAnimation(
+      const staticPathAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -425,15 +439,15 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [10, 10],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
@@ -462,7 +476,7 @@ void main() {
     });
 
     test('when compiling path control points, it should preserve the previous component rounding order', () {
-      final roundedPathAnimation = LottieAnimation(
+      const roundedPathAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -477,15 +491,15 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0.00006, 0],
                       [1, 1],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0.00006, 0],
                       [0, 0],
                     ],
@@ -505,7 +519,7 @@ void main() {
     });
 
     test('when generating code with a closed path, it should include close()', () {
-      final closedPathAnimation = LottieAnimation(
+      const closedPathAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -520,17 +534,17 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [10, 0],
                       [10, 10],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                       [0, 0],
@@ -551,7 +565,7 @@ void main() {
     });
 
     test('when generating code with an even-odd fill path, it should include PathFillType.evenOdd', () {
-      final evenOddAnimation = LottieAnimation(
+      const evenOddAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -566,17 +580,17 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [50, 0],
                       [50, 50],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                       [0, 0],
@@ -599,7 +613,7 @@ void main() {
 
   group('LottieGenerator animated keyframes', () {
     test('when generating code with animated layer opacity, it should emit a specialized scalar evaluator', () {
-      final animatedAnimation = LottieAnimation(
+      const animatedAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -610,7 +624,7 @@ void main() {
           LottieLayer(
             name: 'Anim Layer',
             shapeGroups: [],
-            opacity: const LottieAnimatedScalar(
+            opacity: LottieAnimatedScalar(
               animated: true,
               keyframes: [LottieScalarKeyframe(time: 0, start: 100, end: 0), LottieScalarKeyframe(time: 60, start: 0)],
             ),
@@ -632,7 +646,7 @@ void main() {
     });
 
     test('when generating code with incomplete easing handles, it should fall back to linear interpolation', () {
-      final incompleteEasingAnimation = LottieAnimation(
+      const incompleteEasingAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -643,7 +657,7 @@ void main() {
           LottieLayer(
             name: 'Anim Layer',
             shapeGroups: [],
-            opacity: const LottieAnimatedScalar(
+            opacity: LottieAnimatedScalar(
               animated: true,
               keyframes: [LottieScalarKeyframe(time: 0, start: 100, end: 0, outX: 0.42)],
             ),
@@ -661,7 +675,7 @@ void main() {
         LottieScalarKeyframe(time: 0, start: 0, end: 100, outX: 0.42, outY: 0, inX: 0.58, inY: 1),
         LottieScalarKeyframe(time: 60, start: 100),
       ];
-      final sharedEasingAnimation = LottieAnimation(
+      const sharedEasingAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -672,8 +686,8 @@ void main() {
           LottieLayer(
             name: 'Anim Layer',
             shapeGroups: [],
-            opacity: const LottieAnimatedScalar(animated: true, keyframes: sharedKeyframes),
-            rotation: const LottieAnimatedScalar(animated: true, keyframes: sharedKeyframes),
+            opacity: LottieAnimatedScalar(animated: true, keyframes: sharedKeyframes),
+            rotation: LottieAnimatedScalar(animated: true, keyframes: sharedKeyframes),
           ),
         ],
       );
@@ -691,7 +705,7 @@ void main() {
     });
 
     test('when an animated property never changes value, it should compile it as a static transform', () {
-      final constantAnimation = LottieAnimation(
+      const constantAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -702,7 +716,7 @@ void main() {
           LottieLayer(
             name: 'Layer',
             shapeGroups: [],
-            positionX: const LottieAnimatedScalar(
+            positionX: LottieAnimatedScalar(
               animated: true,
               keyframes: [
                 LottieScalarKeyframe(time: 0, start: 25, end: 25, outX: 0.42, outY: 0, inX: 0.58, inY: 1),
@@ -719,7 +733,7 @@ void main() {
     });
 
     test('when one animated segment has no value delta, it should skip easing work for that segment', () {
-      final constantSegmentAnimation = LottieAnimation(
+      const constantSegmentAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -730,7 +744,7 @@ void main() {
           LottieLayer(
             name: 'Layer',
             shapeGroups: [],
-            rotation: const LottieAnimatedScalar(
+            rotation: LottieAnimatedScalar(
               animated: true,
               keyframes: [
                 LottieScalarKeyframe(time: 0, start: 0, end: 0, outX: 0.42, outY: 0, inX: 0.58, inY: 1),
@@ -750,7 +764,7 @@ void main() {
 
   group('LottieGenerator multiple items', () {
     test('when generating code with multiple layers, it should emit multiple draw methods', () {
-      final multiLayer = LottieAnimation(
+      const multiLayer = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -793,7 +807,7 @@ void main() {
     });
 
     test('when generating code with multiple layers, it should paint later Lottie layers behind earlier layers', () {
-      final multiLayer = LottieAnimation(
+      const multiLayer = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -815,7 +829,7 @@ void main() {
     });
 
     test('when generating code with multiple shape groups in a layer, it should render both groups', () {
-      final multiGroup = LottieAnimation(
+      const multiGroup = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -853,7 +867,7 @@ void main() {
     });
 
     test('when generating code with multiple rects in the same group, it should emit unique cached geometry names', () {
-      final multiRect = LottieAnimation(
+      const multiRect = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -884,7 +898,7 @@ void main() {
     });
 
     test('when generating code with an even-odd fill across multiple rects, it should combine them into one path', () {
-      final compoundRect = LottieAnimation(
+      const compoundRect = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -926,7 +940,7 @@ void main() {
     });
 
     test('when generating code with multiple stroke-only paths, it should draw one combined stroke path', () {
-      final compoundStroke = LottieAnimation(
+      const compoundStroke = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -941,30 +955,30 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [10, 0],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
                     closed: false,
                   ),
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [0, 10],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
@@ -993,7 +1007,7 @@ void main() {
     });
 
     test('when generating code with filled paths and a stroke, it should not combine strokes', () {
-      final filledStroke = LottieAnimation(
+      const filledStroke = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1008,30 +1022,30 @@ void main() {
                 name: 'Group',
                 items: [
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [10, 0],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
                     closed: false,
                   ),
                   LottiePath(
-                    vertices: const [
+                    vertices: [
                       [0, 0],
                       [0, 10],
                     ],
-                    inTangents: const [
+                    inTangents: [
                       [0, 0],
                       [0, 0],
                     ],
-                    outTangents: const [
+                    outTangents: [
                       [0, 0],
                       [0, 0],
                     ],
@@ -1059,7 +1073,7 @@ void main() {
     });
 
     test('when generating code with a fully transparent group, it should preserve later visible groups', () {
-      final transparentGroupAnimation = LottieAnimation(
+      const transparentGroupAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1099,7 +1113,7 @@ void main() {
 
   group('LottieGenerator line styles', () {
     test('when generating code with stroke butt cap and bevel join, it should emit the correct options', () {
-      final lineStyleAnimation = LottieAnimation(
+      const lineStyleAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1128,7 +1142,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -1141,7 +1155,7 @@ void main() {
 
   group('LottieGenerator transform', () {
     test('when generating code with group rotation, it should include canvas.rotate', () {
-      final rotationAnimation = LottieAnimation(
+      const rotationAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1161,7 +1175,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -1172,7 +1186,7 @@ void main() {
     });
 
     test('when generating code with group scaling, it should include canvas.scale', () {
-      final scaleAnimation = LottieAnimation(
+      const scaleAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1192,7 +1206,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -1203,7 +1217,7 @@ void main() {
     });
 
     test('when generating code with group anchor, it should include a negative translate', () {
-      final anchorAnimation = LottieAnimation(
+      const anchorAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1223,7 +1237,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );
@@ -1256,7 +1270,7 @@ void main() {
 
   group('LottieGenerator color deduplication', () {
     test('when two shapes use the same color, it should not duplicate the color parameter', () {
-      final dedupAnimation = LottieAnimation(
+      const dedupAnimation = LottieAnimation(
         width: 100,
         height: 100,
         frameRate: 60,
@@ -1277,7 +1291,7 @@ void main() {
                 ],
               ),
             ],
-            opacity: const LottieAnimatedScalar(animated: false, staticValue: 100),
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
           ),
         ],
       );

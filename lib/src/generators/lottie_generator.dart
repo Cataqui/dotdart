@@ -123,6 +123,7 @@ class LottieGenerator {
   void _writeImports(StringBuffer b) {
     b.writeln("import 'dart:math' as math;");
     b.writeln("import 'package:flutter/material.dart';");
+    b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
     b.writeln();
   }
 
@@ -306,6 +307,7 @@ class LottieGenerator {
     b.writeln();
     b.writeln('    return OverflowBox(');
     b.writeln('      alignment: Alignment.topLeft,');
+    b.writeln('      fit: OverflowBoxFit.deferToChild,');
     b.writeln('      minWidth: width,');
     b.writeln('      maxWidth: width,');
     b.writeln('      minHeight: height,');
