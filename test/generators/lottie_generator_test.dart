@@ -326,6 +326,29 @@ void main() {
       expect(param.defaultValue, 'true');
     });
 
+    test('when getting params, it should include maintainAspectRatio with default true', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      final param = params.firstWhere((p) => p.name == 'maintainAspectRatio');
+      expect(param.type, 'bool');
+      expect(param.defaultValue, 'true');
+    });
+
+    test('when generating source, it should emit the maintainAspectRatio field declaration in Lottie widgets', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('final bool maintainAspectRatio;'));
+    });
+
+    test('when generating source, it should emit the lottieMaintainAspectRatio getter override in Lottie state', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('bool get lottieMaintainAspectRatio => widget.maintainAspectRatio;'));
+    });
+
     test('when getting params, it should include color props for each unique color', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final params = generator.params;

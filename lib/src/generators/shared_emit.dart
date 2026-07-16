@@ -41,6 +41,7 @@ mixin _DotdartSvgSizing on StatelessWidget {
   double get svgNativeHeight;
   double get svgViewBoxWidth;
   double get svgViewBoxHeight;
+  bool get svgMaintainAspectRatio;
 
   Widget buildPainter({required double width, required double height});
 
@@ -56,13 +57,23 @@ mixin _DotdartSvgSizing on StatelessWidget {
     return Size(w, w * aspect);
   }
 
+  Size _resolveSize(double aspect) {
+    if (svgWidgetWidth != null && svgWidgetHeight != null) {
+      if (!svgMaintainAspectRatio) {
+        return Size(svgWidgetWidth!, svgWidgetHeight!);
+      }
+      return svgWidgetWidth! >= svgWidgetHeight!
+          ? Size(svgWidgetWidth!, svgWidgetWidth! * aspect)
+          : Size(svgWidgetHeight! / aspect, svgWidgetHeight!);
+    }
+
+    final w = svgWidgetWidth ?? svgWidgetHeight! / aspect;
+    return Size(w, svgWidgetHeight ?? w * aspect);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasExplicitSize = svgWidgetWidth != null || svgWidgetHeight != null;
-    final aspect = svgViewBoxHeight / svgViewBoxWidth;
-    final width =
-        svgWidgetWidth ?? (svgWidgetHeight != null ? svgWidgetHeight! / aspect : svgNativeWidth);
-    final height = svgWidgetHeight ?? width * aspect;
 
     if (!hasExplicitSize) {
       return LayoutBuilder(
@@ -73,14 +84,17 @@ mixin _DotdartSvgSizing on StatelessWidget {
       );
     }
 
+    final aspect = svgViewBoxHeight / svgViewBoxWidth;
+    final size = _resolveSize(aspect);
+
     return OverflowBox(
       alignment: Alignment.topLeft,
       fit: OverflowBoxFit.deferToChild,
-      minWidth: width,
-      maxWidth: width,
-      minHeight: height,
-      maxHeight: height,
-      child: buildPainter(width: width, height: height),
+      minWidth: size.width,
+      maxWidth: size.width,
+      minHeight: size.height,
+      maxHeight: size.height,
+      child: buildPainter(width: size.width, height: size.height),
     );
   }
 }
@@ -103,6 +117,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
   double? get lottieWidgetHeight;
   double? get lottieProgress;
   bool get lottieRespectDisableAnimations;
+  bool get lottieMaintainAspectRatio;
   Duration get lottieLoopDuration;
   double get lottieCanvasWidth;
   double get lottieCanvasHeight;
@@ -173,13 +188,23 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
     _syncController();
   }
 
+  Size _resolveSize(double aspect) {
+    if (lottieWidgetWidth != null && lottieWidgetHeight != null) {
+      if (!lottieMaintainAspectRatio) {
+        return Size(lottieWidgetWidth!, lottieWidgetHeight!);
+      }
+      return lottieWidgetWidth! >= lottieWidgetHeight!
+          ? Size(lottieWidgetWidth!, lottieWidgetWidth! * aspect)
+          : Size(lottieWidgetHeight! / aspect, lottieWidgetHeight!);
+    }
+
+    final w = lottieWidgetWidth ?? lottieWidgetHeight! / aspect;
+    return Size(w, lottieWidgetHeight ?? w * aspect);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasExplicitSize = lottieWidgetWidth != null || lottieWidgetHeight != null;
-    final aspect = lottieCanvasHeight / lottieCanvasWidth;
-    final width = lottieWidgetWidth ??
-        (lottieWidgetHeight != null ? lottieWidgetHeight! / aspect : lottieCanvasWidth);
-    final height = lottieWidgetHeight ?? width * aspect;
 
     if (!hasExplicitSize) {
       return LayoutBuilder(
@@ -190,14 +215,17 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
       );
     }
 
+    final aspect = lottieCanvasHeight / lottieCanvasWidth;
+    final size = _resolveSize(aspect);
+
     return OverflowBox(
       alignment: Alignment.topLeft,
       fit: OverflowBoxFit.deferToChild,
-      minWidth: width,
-      maxWidth: width,
-      minHeight: height,
-      maxHeight: height,
-      child: buildPainter(width: width, height: height),
+      minWidth: size.width,
+      maxWidth: size.width,
+      minHeight: size.height,
+      maxHeight: size.height,
+      child: buildPainter(width: size.width, height: size.height),
     );
   }
 }

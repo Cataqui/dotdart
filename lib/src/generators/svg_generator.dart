@@ -27,6 +27,14 @@ class SvgGenerator {
       const AccessorParam(name: 'key', type: 'Key?'),
       const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
       const AccessorParam(name: 'height', type: 'double?', documentation: 'Height in logical pixels.'),
+      const AccessorParam(
+        name: 'maintainAspectRatio',
+        type: 'bool',
+        defaultValue: 'true',
+        documentation: 'When true (default), keeps the native aspect ratio using the larger '
+            'requested value as the reference. When false, both dimensions are applied as-is and '
+            'the asset may distort.',
+      ),
     ];
     for (final color in colors) {
       result.add(
@@ -126,6 +134,9 @@ class SvgGenerator {
     b.writeln();
     b.writeln('  @override');
     b.writeln('  double? get svgWidgetHeight => height;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  bool get svgMaintainAspectRatio => maintainAspectRatio;');
     b.writeln();
     b.writeln('  @override');
     b.writeln('  double get svgNativeWidth => $name._svgWidth;');

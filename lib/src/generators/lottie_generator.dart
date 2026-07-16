@@ -30,6 +30,14 @@ class LottieGenerator {
       const AccessorParam(name: 'key', type: 'Key?'),
       const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
       const AccessorParam(name: 'height', type: 'double?', documentation: 'Height in logical pixels.'),
+      const AccessorParam(
+        name: 'maintainAspectRatio',
+        type: 'bool',
+        defaultValue: 'true',
+        documentation: 'When true (default), keeps the native aspect ratio using the larger '
+            'requested value as the reference. When false, both dimensions are applied as-is and '
+            'the asset may distort.',
+      ),
       const AccessorParam(name: 'progress', type: 'double?', documentation: 'Fixed animation progress from 0 to 1.'),
       const AccessorParam(
         name: 'respectDisableAnimations',
@@ -185,6 +193,9 @@ class LottieGenerator {
     b.writeln();
     b.writeln('  @override');
     b.writeln('  double? get lottieWidgetHeight => widget.height;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  bool get lottieMaintainAspectRatio => widget.maintainAspectRatio;');
     b.writeln();
     b.writeln('  @override');
     b.writeln('  double? get lottieProgress => widget.progress;');

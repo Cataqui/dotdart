@@ -226,6 +226,16 @@ Generated SVG widgets are `StatelessWidget` plus `CustomPainter`. They do not
 parse XML at runtime and do not import `flutter_svg`. Supported colors are
 exposed as `color1`, `color2`, and so on, depending on the source asset.
 
+By default, passing both `width` and `height` will **not** distort the asset — the
+larger value wins and the other is derived from the native aspect ratio:
+
+```dart
+$Icons.close(width: 120, height: 200); // renders 200×200 for a square asset
+```
+
+Pass `maintainAspectRatio: false` to apply both dimensions literally (this may distort
+the asset if the dimensions differ from the native aspect ratio).
+
 ## Use Lottie Assets
 
 Given this config:
@@ -270,6 +280,10 @@ class SwipeHint extends StatelessWidget {
 
 Generated Lottie widgets play automatically by default. They pause when the app
 is not resumed and respect platform reduced-motion settings.
+
+As with SVG widgets, passing both `width` and `height` preserves the native aspect
+ratio by default using the larger requested value as the reference. Pass
+`maintainAspectRatio: false` to apply both dimensions directly.
 
 To drive the animation yourself, pass `progress`. Progress uses the full
 normalized timeline: `0` is the first frame and `1` is the last frame.

@@ -356,5 +356,37 @@ void main() {
 
       expect(params.any((p) => p.name == 'color2'), isFalse);
     });
+
+    test('when getting params, it should include maintainAspectRatio as a bool defaulting to true', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'maintainAspectRatio' && p.type == 'bool' && p.defaultValue == 'true'), isTrue);
+    });
+
+    test('when generating source, it should emit the maintainAspectRatio field declaration in SVG widgets', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('final bool maintainAspectRatio;'));
+    });
+
+    test('when generating source, it should emit the svgMaintainAspectRatio getter override in SVG widgets', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('bool get svgMaintainAspectRatio => maintainAspectRatio;'));
+    });
+
+    test('when generating source, it should include maintainAspectRatio = true in the widget constructor', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('this.maintainAspectRatio = true'));
+    });
   });
 }

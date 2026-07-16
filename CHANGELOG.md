@@ -1,3 +1,12 @@
+## 0.5.0
+
+- **Added `maintainAspectRatio` (default `true`) to generated SVG and Lottie widgets.**
+  When a caller passes both `width` and `height`, the widget now keeps the native aspect
+  ratio by default, using the larger requested value as the reference dimension and
+  recomputing the other. Set `maintainAspectRatio: false` to apply both dimensions
+  directly (the previous behavior, which could distort). Image widgets are unaffected —
+  they continue to use the `fit` parameter.
+
 ## 0.4.1
 
 - Fixed raster aspect-ratio calculations for width-only and height-only sizing.

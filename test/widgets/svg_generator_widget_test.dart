@@ -189,6 +189,88 @@ void main() {
       expect(() => DartFormatter(languageVersion: DartFormatter.latestLanguageVersion).format(code), returnsNormally);
     });
   });
+
+  group('maintainAspectRatio sizing', () {
+    testWidgets(
+      'when a square SVG widget receives both width and height with maintainAspectRatio default true, it should use the larger value as the reference',
+      (tester) async {
+        await tester.pumpWidget(
+          const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 500,
+              height: 500,
+              child: _CompileTestSvgWidget(width: 120, height: 200),
+            ),
+          ),
+        );
+
+        final customPaintSize = tester.getSize(find.byKey(const ValueKey('svg_sizing_test_paint')));
+        expect(customPaintSize.width, closeTo(200, 0.1));
+        expect(customPaintSize.height, closeTo(200, 0.1));
+      },
+    );
+
+    testWidgets(
+      'when a square SVG widget receives both width and height with maintainAspectRatio false, it should apply both as-is and distort',
+      (tester) async {
+        await tester.pumpWidget(
+          const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 500,
+              height: 500,
+              child: _CompileTestSvgWidget(width: 120, height: 200, maintainAspectRatio: false),
+            ),
+          ),
+        );
+
+        final customPaintSize = tester.getSize(find.byKey(const ValueKey('svg_sizing_test_paint')));
+        expect(customPaintSize.width, closeTo(120, 0.1));
+        expect(customPaintSize.height, closeTo(200, 0.1));
+      },
+    );
+
+    testWidgets(
+      'when a square SVG widget receives width only with maintainAspectRatio default, it should derive height from aspect',
+      (tester) async {
+        await tester.pumpWidget(
+          const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 500,
+              height: 500,
+              child: _CompileTestSvgWidget(width: 120),
+            ),
+          ),
+        );
+
+        final customPaintSize = tester.getSize(find.byKey(const ValueKey('svg_sizing_test_paint')));
+        expect(customPaintSize.width, closeTo(120, 0.1));
+        expect(customPaintSize.height, closeTo(120, 0.1));
+      },
+    );
+
+    testWidgets(
+      'when a square SVG widget receives height only with maintainAspectRatio default, it should derive width from aspect',
+      (tester) async {
+        await tester.pumpWidget(
+          const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 500,
+              height: 500,
+              child: _CompileTestSvgWidget(height: 200),
+            ),
+          ),
+        );
+
+        final customPaintSize = tester.getSize(find.byKey(const ValueKey('svg_sizing_test_paint')));
+        expect(customPaintSize.width, closeTo(200, 0.1));
+        expect(customPaintSize.height, closeTo(200, 0.1));
+      },
+    );
+  });
 }
 
 class _MockPathFillPainter extends CustomPainter {
@@ -386,6 +468,7 @@ mixin _DotdartSvgSizing on StatelessWidget {
   double get svgNativeHeight;
   double get svgViewBoxWidth;
   double get svgViewBoxHeight;
+  bool get svgMaintainAspectRatio;
 
   Widget buildPainter({required double width, required double height});
 
@@ -401,12 +484,23 @@ mixin _DotdartSvgSizing on StatelessWidget {
     return Size(w, w * aspect);
   }
 
+  Size _resolveSize(double aspect) {
+    if (svgWidgetWidth != null && svgWidgetHeight != null) {
+      if (!svgMaintainAspectRatio) {
+        return Size(svgWidgetWidth!, svgWidgetHeight!);
+      }
+      return svgWidgetWidth! >= svgWidgetHeight!
+          ? Size(svgWidgetWidth!, svgWidgetWidth! * aspect)
+          : Size(svgWidgetHeight! / aspect, svgWidgetHeight!);
+    }
+
+    final w = svgWidgetWidth ?? svgWidgetHeight! / aspect;
+    return Size(w, svgWidgetHeight ?? w * aspect);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasExplicitSize = svgWidgetWidth != null || svgWidgetHeight != null;
-    final aspect = svgViewBoxHeight / svgViewBoxWidth;
-    final width = svgWidgetWidth ?? (svgWidgetHeight != null ? svgWidgetHeight! / aspect : svgNativeWidth);
-    final height = svgWidgetHeight ?? width * aspect;
 
     if (!hasExplicitSize) {
       return LayoutBuilder(
@@ -417,20 +511,23 @@ mixin _DotdartSvgSizing on StatelessWidget {
       );
     }
 
+    final aspect = svgViewBoxHeight / svgViewBoxWidth;
+    final size = _resolveSize(aspect);
+
     return OverflowBox(
       alignment: Alignment.topLeft,
       fit: OverflowBoxFit.deferToChild,
-      minWidth: width,
-      maxWidth: width,
-      minHeight: height,
-      maxHeight: height,
-      child: buildPainter(width: width, height: height),
+      minWidth: size.width,
+      maxWidth: size.width,
+      minHeight: size.height,
+      maxHeight: size.height,
+      child: buildPainter(width: size.width, height: size.height),
     );
   }
 }
 
 class _CompileTestSvgWidget extends StatelessWidget with _DotdartSvgSizing {
-  const _CompileTestSvgWidget({this.width, this.height});
+  const _CompileTestSvgWidget({this.width, this.height, this.maintainAspectRatio = true});
 
   static const double _svgWidth = 24;
   static const double _svgHeight = 24;
@@ -439,12 +536,16 @@ class _CompileTestSvgWidget extends StatelessWidget with _DotdartSvgSizing {
 
   final double? width;
   final double? height;
+  final bool maintainAspectRatio;
 
   @override
   double? get svgWidgetWidth => width;
 
   @override
   double? get svgWidgetHeight => height;
+
+  @override
+  bool get svgMaintainAspectRatio => maintainAspectRatio;
 
   @override
   double get svgNativeWidth => _svgWidth;
@@ -462,7 +563,11 @@ class _CompileTestSvgWidget extends StatelessWidget with _DotdartSvgSizing {
   Widget buildPainter({required double width, required double height}) {
     return SizedBox.fromSize(
       size: Size(width, height),
-      child: CustomPaint(painter: _CompileTestPainter(), size: Size(width, height)),
+      child: CustomPaint(
+        key: const ValueKey('svg_sizing_test_paint'),
+        painter: _CompileTestPainter(),
+        size: Size(width, height),
+      ),
     );
   }
 }
