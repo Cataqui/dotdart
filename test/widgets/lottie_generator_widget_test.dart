@@ -3,51 +3,43 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Generated CustomPainter rendering', () {
-    testWidgets(
-      'when a CustomPainter draws rect fill and stroke like generated code, it should paint without errors',
-      (tester) async {
-        await tester.pumpWidget(
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 200,
-              height: 200,
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _MockRectPainter(),
-                  size: const Size(200, 200),
-                ),
-              ),
+    testWidgets('when a CustomPainter draws rect fill and stroke like generated code, it should paint without errors', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _MockRectPainter(), size: const Size(200, 200)),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.takeException(), isNull);
+    });
 
-    testWidgets(
-      'when a CustomPainter draws an ellipse like generated code, it should paint without errors',
-      (tester) async {
-        await tester.pumpWidget(
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 200,
-              height: 200,
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _MockEllipsePainter(),
-                  size: const Size(200, 200),
-                ),
-              ),
+    testWidgets('when a CustomPainter draws an ellipse like generated code, it should paint without errors', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _MockEllipsePainter(), size: const Size(200, 200)),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets(
       'when a CustomPainter draws a path with fill and stroke like generated code, it should paint without errors',
@@ -59,10 +51,7 @@ void main() {
               width: 200,
               height: 200,
               child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _MockPathPainter(),
-                  size: const Size(200, 200),
-                ),
+                child: CustomPaint(painter: _MockPathPainter(), size: const Size(200, 200)),
               ),
             ),
           ),
@@ -82,10 +71,7 @@ void main() {
               width: 200,
               height: 200,
               child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _MockTransformedPainter(),
-                  size: const Size(200, 200),
-                ),
+                child: CustomPaint(painter: _MockTransformedPainter(), size: const Size(200, 200)),
               ),
             ),
           ),

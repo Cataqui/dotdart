@@ -20,12 +20,21 @@ class ImageGenerator {
   /// Returns the constructor parameters of the generated image widget.
   List<AccessorParam> get params => [
     const AccessorParam(name: 'key', type: 'Key?'),
-    const AccessorParam(name: 'width', type: 'double?'),
-    const AccessorParam(name: 'height', type: 'double?'),
-    const AccessorParam(name: 'fit', type: 'BoxFit?'),
-    const AccessorParam(name: 'alignment', type: 'AlignmentGeometry', defaultValue: 'Alignment.center'),
-    const AccessorParam(name: 'color', type: 'Color?'),
-    const AccessorParam(name: 'colorBlendMode', type: 'BlendMode?'),
+    const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
+    const AccessorParam(name: 'height', type: 'double?', documentation: 'Height in logical pixels.'),
+    const AccessorParam(name: 'fit', type: 'BoxFit?', documentation: 'How to inscribe the image in its bounds.'),
+    const AccessorParam(
+      name: 'alignment',
+      type: 'AlignmentGeometry',
+      defaultValue: 'Alignment.center',
+      documentation: 'Alignment within the widget bounds.',
+    ),
+    const AccessorParam(name: 'color', type: 'Color?', documentation: 'A color to blend with the image.'),
+    const AccessorParam(
+      name: 'colorBlendMode',
+      type: 'BlendMode?',
+      documentation: 'The blend mode applied when color is set.',
+    ),
   ];
 
   /// Generates the widget class source fragment (no header/imports).
@@ -45,56 +54,37 @@ class ImageGenerator {
 
     b.writeln('/// A dotdart-generated image widget from `$assetPath`.');
     b.writeln('///');
-    b.writeln('/// Intrinsic ${model.intrinsicWidth}×${model.intrinsicHeight} · $formatName · aspect ${model.aspectRatio.toStringAsFixed(4)}.');
+    b.writeln(
+      '/// Intrinsic ${model.intrinsicWidth}×${model.intrinsicHeight} · $formatName · aspect ${model.aspectRatio.toStringAsFixed(4)}.',
+    );
     b.writeln('/// Decodes at display size × device pixel ratio for minimal memory.');
     b.writeln('/// Renders a thumbhash placeholder in frame 1, then crossfades to the image.');
     b.writeln('class $name extends StatelessWidget {');
     b.writeln('  const $name({');
-    b.writeln('    super.key,');
-    b.writeln('    this.width,');
-    b.writeln('    this.height,');
-    b.writeln('    this.fit,');
-    b.writeln('    this.alignment = Alignment.center,');
-    b.writeln('    this.color,');
-    b.writeln('    this.colorBlendMode,');
+    for (final param in params) {
+      b.writeln('    ${param.constructorInitializer},');
+    }
     b.writeln('  });');
     b.writeln();
+    for (final param in params) {
+      final fieldDeclaration = param.fieldDeclaration;
+      if (fieldDeclaration == null) continue;
+      b.write(fieldDeclaration);
+      b.writeln();
+    }
 
-    b.writeln('  /// Width in logical pixels.');
-    b.writeln('  final double? width;');
-    b.writeln();
-    b.writeln('  /// Height in logical pixels.');
-    b.writeln('  final double? height;');
-    b.writeln();
-    b.writeln('  /// How to inscribe the image within [width] and [height].');
-    b.writeln('  final BoxFit? fit;');
-    b.writeln();
-    b.writeln('  /// Alignment within the widget bounds.');
-    b.writeln('  final AlignmentGeometry alignment;');
-    b.writeln();
-    b.writeln('  /// A color to blend the image with.');
-    b.writeln('  final Color? color;');
-    b.writeln();
-    b.writeln('  /// The blend mode to apply when [color] is set.');
-    b.writeln('  final BlendMode? colorBlendMode;');
-    b.writeln();
-
-    b.writeln('  static const int _intrinsicWidth = ${model.intrinsicWidth};');
-    b.writeln('  static const int _intrinsicHeight = ${model.intrinsicHeight};');
     b.writeln('  static const double _aspectRatio = ${_fmt(model.aspectRatio)};');
-    b.writeln('  static const bool _isAnimated = ${_boolLiteral(model.isAnimated)};');
     b.writeln('  static const Color _dominantColor = Color($hexColor);');
     b.writeln("  static const String _thumbhash = '${model.thumbhash}';");
     b.writeln("  static const String _assetPath = '$assetPath';");
-    b.writeln("  static const String cacheKey = '$assetPath';");
     b.writeln();
 
     b.writeln('  @override');
     b.writeln('  Widget build(BuildContext context) {');
     b.writeln('    final dpr = MediaQuery.devicePixelRatioOf(context);');
-    b.writeln('    final aspect = _aspectRatio;');
-    b.writeln('    final w = width ?? (height != null ? height! / aspect : $_defaultWidth.0);');
-    b.writeln('    final h = height ?? w * aspect;');
+    b.writeln('    const aspect = _aspectRatio;');
+    b.writeln('    final w = width ?? (height != null ? height! * aspect : $_defaultWidth.0);');
+    b.writeln('    final h = height ?? w / aspect;');
     b.writeln();
     b.writeln('    final image = Image.asset(');
     b.writeln('      _assetPath,');
@@ -144,6 +134,4 @@ class ImageGenerator {
     }
     return v.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
   }
-
-  String _boolLiteral(bool v) => v ? 'true' : 'false';
 }

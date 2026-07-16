@@ -10,15 +10,7 @@ void main() {
     });
 
     test('when creating a keyframe with all optional fields, it should store end and easing', () {
-      const kf = LottieScalarKeyframe(
-        time: 20,
-        start: 100,
-        end: 200,
-        outX: 0.5,
-        outY: 0,
-        inX: 0.5,
-        inY: 1,
-      );
+      const kf = LottieScalarKeyframe(time: 20, start: 100, end: 200, outX: 0.5, outY: 0, inX: 0.5, inY: 1);
 
       expect((kf.time, kf.start, kf.end, kf.outX, kf.outY, kf.inX, kf.inY), (20, 100, 200, 0.5, 0, 0.5, 1));
     });

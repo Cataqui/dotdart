@@ -1,11 +1,13 @@
 import 'package:dotdart/src/generators/accessor_param.dart';
+import 'package:dotdart/src/generators/generated_asset_spec.dart';
 import 'package:dotdart/src/generators/namespace_assembler.dart';
 import 'package:dotdart/src/generators/naming.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const crossAsset = AssembledAsset(
+  const crossAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/icons/cross.svg',
     accessorName: 'cross',
     widgetClassName: '_Cross',
     params: [
@@ -18,7 +20,8 @@ void main() {
     assetType: DotdartAssetType.svg,
   );
 
-  const phoneAsset = AssembledAsset(
+  const phoneAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/icons/phone.svg',
     accessorName: 'phone',
     widgetClassName: '_Phone',
     params: [
@@ -31,7 +34,8 @@ void main() {
     assetType: DotdartAssetType.svg,
   );
 
-  const lottieAsset = AssembledAsset(
+  const lottieAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/lotties/swipe_up_animation.json',
     accessorName: 'swipeUpAnimation',
     widgetClassName: '_SwipeUpAnimation',
     params: [
@@ -42,35 +46,33 @@ void main() {
     assetType: DotdartAssetType.lottie,
   );
 
+  const rasterAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/images/landscape.png',
+    accessorName: 'landscape',
+    widgetClassName: '_Landscape',
+    params: [AccessorParam(name: 'key', type: 'Key?')],
+    widgetSource: 'class _Landscape extends StatelessWidget {}',
+    assetType: DotdartAssetType.raster,
+    cacheKey: 'assets/images/landscape.png',
+  );
+
   group('NamespaceAssembler', () {
     test('when assembling a namespace with one asset, it should include the generated code header', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, allOf(contains('// GENERATED CODE - DO NOT MODIFY BY HAND'), contains('//  dotdart')));
     });
 
     test('when assembling a namespace with one asset, it should include the coverage ignore directive', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('// coverage:ignore-file'));
     });
 
     test('when assembling a namespace, it should include the correct imports', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(
@@ -84,22 +86,14 @@ void main() {
     });
 
     test('when assembling a namespace, it should emit the abstract final class with dollar prefix', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains(r'abstract final class $Icons {'));
     });
 
     test('when assembling a namespace with one asset, it should emit one accessor method', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('static Widget cross({'));
@@ -109,38 +103,38 @@ void main() {
     });
 
     test('when assembling a namespace with one asset, the accessor should delegate to the widget constructor', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('_Cross('));
     });
 
-    test('when assembling a namespace with multiple assets, it should emit one accessor per asset in alphabetical order', () {
-      const arrowAsset = AssembledAsset(
-        accessorName: 'arrow',
-        widgetClassName: '_Arrow',
-        params: [AccessorParam(name: 'key', type: 'Key?')],
-        widgetSource: 'class _Arrow extends StatelessWidget {}',
-        assetType: DotdartAssetType.svg,
-      );
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [arrowAsset, crossAsset, phoneAsset],
-      );
-      final code = assembler.assemble();
+    test(
+      'when assembling a namespace with multiple assets, it should emit one accessor per asset in alphabetical order',
+      () {
+        const arrowAsset = GeneratedAssetSpec(
+          sourcePath: 'assets/icons/arrow.svg',
+          accessorName: 'arrow',
+          widgetClassName: '_Arrow',
+          params: [AccessorParam(name: 'key', type: 'Key?')],
+          widgetSource: 'class _Arrow extends StatelessWidget {}',
+          assetType: DotdartAssetType.svg,
+        );
+        final assembler = NamespaceAssembler(
+          namespaceName: 'Icons',
+          folderSegment: 'icons',
+          assets: [arrowAsset, crossAsset, phoneAsset],
+        );
+        final code = assembler.assemble();
 
-      final arrowIdx = code.indexOf('static Widget arrow({');
-      final crossIdx = code.indexOf('static Widget cross({');
-      final phoneIdx = code.indexOf('static Widget phone({');
+        final arrowIdx = code.indexOf('static Widget arrow({');
+        final crossIdx = code.indexOf('static Widget cross({');
+        final phoneIdx = code.indexOf('static Widget phone({');
 
-      expect(arrowIdx, lessThan(crossIdx));
-      expect(crossIdx, lessThan(phoneIdx));
-    });
+        expect(arrowIdx, lessThan(crossIdx));
+        expect(crossIdx, lessThan(phoneIdx));
+      },
+    );
 
     test('when assembling a namespace, it should include all widget classes after the namespace class', () {
       final assembler = NamespaceAssembler(
@@ -156,16 +150,15 @@ void main() {
       expect(code, contains('class _Phone extends StatelessWidget {}'));
     });
 
-    test('when assembling a namespace with a param that has a default value, it should include the default in the accessor', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Lotties',
-        folderSegment: 'lotties',
-        assets: [lottieAsset],
-      );
-      final code = assembler.assemble();
+    test(
+      'when assembling a namespace with a param that has a default value, it should include the default in the accessor',
+      () {
+        final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
+        final code = assembler.assemble();
 
-      expect(code, contains('bool respectDisableAnimations = true'));
-    });
+        expect(code, contains('bool respectDisableAnimations = true'));
+      },
+    );
 
     test('when using naming helpers with underscore filenames, it should produce correct accessor names', () {
       final arrowLeft = Naming.accessorName('assets/icons/arrow_left.svg');
@@ -184,55 +177,35 @@ void main() {
     });
 
     test('when assembling SVG assets, it should emit the shared _dotdartApplyOpacity function', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('Color _dotdartApplyOpacity(Color color, double opacity)'));
     });
 
     test('when assembling SVG assets, it should emit the shared _DotdartSvgSizing mixin', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('mixin _DotdartSvgSizing on StatelessWidget'));
     });
 
     test('when assembling SVG assets, it should not emit the Lottie animation state mixin', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, isNot(contains('_DotdartLottieAnimationState')));
     });
 
     test('when assembling Lottie assets, it should emit the shared _DotdartLottieAnimationState mixin', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Lotties',
-        folderSegment: 'lotties',
-        assets: [lottieAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('mixin _DotdartLottieAnimationState<T extends StatefulWidget>'));
     });
 
     test('when assembling Lottie assets, it should not emit the SVG sizing mixin', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Lotties',
-        folderSegment: 'lotties',
-        assets: [lottieAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();
 
       expect(code, isNot(contains('_DotdartSvgSizing')));
@@ -250,25 +223,24 @@ void main() {
     });
 
     test('when assembling Lottie assets, the accessor doc should reference .json extension', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Lotties',
-        folderSegment: 'lotties',
-        assets: [lottieAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('swipeUpAnimation.json'));
     });
 
     test('when assembling SVG assets, the accessor doc should reference .svg extension', () {
-      final assembler = NamespaceAssembler(
-        namespaceName: 'Icons',
-        folderSegment: 'icons',
-        assets: [crossAsset],
-      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
 
       expect(code, contains('cross.svg'));
+    });
+
+    test('when assembling raster assets, it should expose precache without public cache keys', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Images', folderSegment: 'images', assets: [rasterAsset]);
+      final code = assembler.assemble();
+
+      expect(code, allOf(contains('static Future<void> precache(BuildContext context)'), isNot(contains('CacheKey'))));
     });
   });
 }

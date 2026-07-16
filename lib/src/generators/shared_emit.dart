@@ -1,3 +1,5 @@
+import '../parsers/raster/thumbhash.dart';
+
 /// Emits shared, file-level Dart source that is deduplicated across all
 /// widget and painter classes inside a single namespace file.
 ///
@@ -15,7 +17,7 @@ class SharedEmitter {
     return '''
 Color _dotdartApplyOpacity(Color color, double opacity) {
   if (opacity == 1) return color;
-  return color.withValues(alpha: math.min(1.0, math.max(0.0, color.a * opacity)));
+  return color.withValues(alpha: math.min(1, math.max(0, color.a * opacity)));
 }
 
 ''';
@@ -208,110 +210,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
   /// Emitted once per namespace file when any raster asset is present.
   static String thumbhashCode() {
     return '''
-/// Decodes a thumbhash string into a small RGBA image.
-class _DotdartThumbhashDecoder {
-  _DotdartThumbhashDecoder._();
-
-  static ({int w, int h, List<int> pixels}) decode(String hash) {
-    final bytes = _b64decode(hash);
-    if (bytes.length < 5) {
-      return (w: 1, h: 1, pixels: [0, 0, 0, 255]);
-    }
-
-    final dcR = (bytes[0] - 128) / 127;
-    final dcG = (bytes[1] - 128) / 127;
-    final dcB = (bytes[2] - 128) / 127;
-    final dcA = bytes[3] / 255;
-
-    final header = bytes[4];
-    final nx = ((header >> 3) & 7) + 1;
-    final ny = (header & 7) + 1;
-
-    final acCount = nx * ny - 1;
-    final expectedLen = 5 + acCount * 4;
-    final acBytes = bytes.length >= expectedLen
-        ? bytes.sublist(5, acCount * 4)
-        : <int>[];
-
-    final acR = List.filled(nx * ny, 0.0);
-    final acG = List.filled(nx * ny, 0.0);
-    final acB = List.filled(nx * ny, 0.0);
-    final acA = List.filled(nx * ny, 0.0);
-
-    var acIdx = 0;
-    for (var iy = 0; iy < ny; iy++) {
-      for (var ix = 0; ix < nx; ix++) {
-        if (ix == 0 && iy == 0) continue;
-        final idx = iy * nx + ix;
-        acR[idx] = (acBytes[acIdx++] - 128) / 63;
-        acG[idx] = (acBytes[acIdx++] - 128) / 63;
-        acB[idx] = (acBytes[acIdx++] - 128) / 63;
-        acA[idx] = (acBytes[acIdx++] - 128) / 63;
-      }
-    }
-
-    final pixels = <int>[];
-    for (var y = 0; y < ny; y++) {
-      for (var x = 0; x < nx; x++) {
-        var r = dcR;
-        var g = dcG;
-        var b = dcB;
-        var a = dcA;
-        for (var iy = 0; iy < ny; iy++) {
-          for (var ix = 0; ix < nx; ix++) {
-            if (ix == 0 && iy == 0) continue;
-            final idx = iy * nx + ix;
-            final cx = math.cos(math.pi / nx * (x + 0.5) * ix);
-            final cy = math.cos(math.pi / ny * (y + 0.5) * iy);
-            final weight = cx * cy;
-            r += acR[idx] * weight;
-            g += acG[idx] * weight;
-            b += acB[idx] * weight;
-            a += acA[idx] * weight;
-          }
-        }
-
-        if (a <= 0) {
-          pixels.addAll([0, 0, 0, 0]);
-        } else {
-          final invA = 1.0 / a;
-          pixels.add((_linearToSrgb((r * invA).clamp(0, 1)) * 255).round().clamp(0, 255));
-          pixels.add((_linearToSrgb((g * invA).clamp(0, 1)) * 255).round().clamp(0, 255));
-          pixels.add((_linearToSrgb((b * invA).clamp(0, 1)) * 255).round().clamp(0, 255));
-          pixels.add((a.clamp(0, 1) * 255).round().clamp(0, 255));
-        }
-      }
-    }
-
-    return (w: nx, h: ny, pixels: pixels);
-  }
-
-  static double _linearToSrgb(double linear) {
-    return linear <= 0.0031308
-        ? linear * 12.92
-        : 1.055 * math.pow(linear, 1 / 2.4) - 0.055;
-  }
-
-  static List<int> _b64decode(String str) {
-    const table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    final bytes = <int>[];
-    var bits = 0;
-    var bitCount = 0;
-    for (var i = 0; i < str.length; i++) {
-      final idx = table.indexOf(str[i]);
-      if (idx < 0) continue;
-      bits = (bits << 6) | idx;
-      bitCount += 6;
-      if (bitCount >= 8) {
-        bitCount -= 8;
-        bytes.add((bits >> bitCount) & 0xFF);
-        bits &= (1 << bitCount) - 1;
-      }
-    }
-    return bytes;
-  }
-}
-
+${ThumbhashDecoderSource.source()}
 /// Paints a thumbhash placeholder on a [CustomPainter] canvas.
 class _DotdartThumbhashPainter extends CustomPainter {
   _DotdartThumbhashPainter(this.hash, this.dominantColor);
@@ -325,8 +224,8 @@ class _DotdartThumbhashPainter extends CustomPainter {
     if (hash.isEmpty) return;
 
     final decoded = _DotdartThumbhashDecoder.decode(hash);
-    final thumbW = decoded.w;
-    final thumbH = decoded.h;
+    final thumbW = decoded.width;
+    final thumbH = decoded.height;
     final pixels = decoded.pixels;
     final pixelW = size.width / thumbW;
     final pixelH = size.height / thumbH;

@@ -76,24 +76,15 @@ void main() {
     });
 
     test('when parsing matrix(), it should throw an unsupported exception', () {
-      expect(
-        () => SvgTransform.parse('matrix(1, 0, 0, 1, 0, 0)'),
-        throwsA(isA<DotdartUnsupportedFeatureException>()),
-      );
+      expect(() => SvgTransform.parse('matrix(1, 0, 0, 1, 0, 0)'), throwsA(isA<DotdartUnsupportedFeatureException>()));
     });
 
     test('when parsing skewX(), it should throw an unsupported exception', () {
-      expect(
-        () => SvgTransform.parse('skewX(10)'),
-        throwsA(isA<DotdartUnsupportedFeatureException>()),
-      );
+      expect(() => SvgTransform.parse('skewX(10)'), throwsA(isA<DotdartUnsupportedFeatureException>()));
     });
 
     test('when parsing skewY(), it should throw an unsupported exception', () {
-      expect(
-        () => SvgTransform.parse('skewY(10)'),
-        throwsA(isA<DotdartUnsupportedFeatureException>()),
-      );
+      expect(() => SvgTransform.parse('skewY(10)'), throwsA(isA<DotdartUnsupportedFeatureException>()));
     });
 
     test('when parsing an empty string, it should return an empty list', () {
@@ -103,10 +94,7 @@ void main() {
     });
 
     test('when parsing an unknown function, it should throw an unsupported exception', () {
-      expect(
-        () => SvgTransform.parse('unknown(1, 2)'),
-        throwsA(isA<DotdartUnsupportedFeatureException>()),
-      );
+      expect(() => SvgTransform.parse('unknown(1, 2)'), throwsA(isA<DotdartUnsupportedFeatureException>()));
     });
 
     test('when parsing translate with a space instead of comma, it should still parse', () {

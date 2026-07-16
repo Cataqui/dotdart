@@ -1,22 +1,11 @@
 /// Stroke line cap style.
-enum SvgStrokeLineCap {
-  butt,
-  round,
-  square;
-}
+enum SvgStrokeLineCap { butt, round, square }
 
 /// Stroke line join style.
-enum SvgStrokeLineJoin {
-  miter,
-  round,
-  bevel;
-}
+enum SvgStrokeLineJoin { miter, round, bevel }
 
 /// Fill rule for paths.
-enum SvgFillRule {
-  nonzero,
-  evenodd;
-}
+enum SvgFillRule { nonzero, evenodd }
 
 /// Resolved SVG presentation attributes for a single element.
 class SvgStyle {

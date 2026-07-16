@@ -74,6 +74,18 @@ const _minimalLottie = '''
 
 void main() {
   group('LottieParser', () {
+    test('when a layer entry is not an object, it should report the failing JSON path', () {
+      const source = '''
+{"v":"5.7.0","fr":30,"w":100,"h":100,"ip":0,"op":30,"layers":[false]}
+''';
+
+      expect(
+        () => LottieParser.parse(source),
+        throwsA(
+          isA<DotdartInvalidLottieException>().having((error) => error.message, 'message', contains(r'$.layers[0]')),
+        ),
+      );
+    });
     test('when parsing a minimal valid Lottie JSON, it should return an animation with correct metadata', () {
       final result = LottieParser.parse(_minimalLottie);
 
@@ -217,7 +229,14 @@ void main() {
         'op': 30,
         'nm': 'With Null Layer',
         'layers': [
-          <String, dynamic>{'ty': 0, 'nm': 'Null Layer', 'ip': 0, 'op': 30, 'ks': <String, dynamic>{}, 'shapes': <Object?>[]},
+          <String, dynamic>{
+            'ty': 0,
+            'nm': 'Null Layer',
+            'ip': 0,
+            'op': 30,
+            'ks': <String, dynamic>{},
+            'shapes': <Object?>[],
+          },
           {
             'ty': 4,
             'nm': 'Shape Layer',
@@ -1031,13 +1050,27 @@ void main() {
     });
 
     test('when parse is called with missing frame rate, it should throw an invalid Lottie error', () {
-      final json = jsonEncode(<String, dynamic>{'v': '5.5.2', 'w': 100, 'h': 100, 'ip': 0, 'op': 30, 'layers': <Object?>[]});
+      final json = jsonEncode(<String, dynamic>{
+        'v': '5.5.2',
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'layers': <Object?>[],
+      });
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
     });
 
     test('when parse is called with missing height, it should throw an invalid Lottie error', () {
-      final json = jsonEncode(<String, dynamic>{'v': '5.5.2', 'fr': 30, 'w': 100, 'ip': 0, 'op': 30, 'layers': <Object?>[]});
+      final json = jsonEncode(<String, dynamic>{
+        'v': '5.5.2',
+        'fr': 30,
+        'w': 100,
+        'ip': 0,
+        'op': 30,
+        'layers': <Object?>[],
+      });
 
       expect(() => LottieParser.parse(json), throwsA(isA<DotdartInvalidLottieException>()));
     });

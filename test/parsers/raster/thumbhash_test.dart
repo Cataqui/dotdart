@@ -1,8 +1,6 @@
-import 'dart:typed_data';
-
-import 'package:image/image.dart' as img;
 import 'package:dotdart/src/parsers/raster/thumbhash.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   group('ThumbhashEncoder', () {
@@ -17,8 +15,7 @@ void main() {
       }
 
       final hash = ThumbhashEncoder.encode(image);
-      expect(hash, isNotEmpty);
-      expect(hash.length, greaterThan(4));
+      expect(hash, allOf(isNotEmpty, hasLength(greaterThan(4))));
     });
 
     test('when encoding a solid blue image, it should produce a different hash than red', () {

@@ -127,12 +127,7 @@ class RasterParser {
   static int _computeDominantColor(img.Image image) {
     final thumbW = image.width > 16 ? 16 : image.width;
     final thumbH = image.height > 16 ? 16 : image.height;
-    final resized = img.copyResize(
-      image,
-      width: thumbW,
-      height: thumbH,
-      interpolation: img.Interpolation.average,
-    );
+    final resized = img.copyResize(image, width: thumbW, height: thumbH, interpolation: img.Interpolation.average);
 
     var totalR = 0;
     var totalG = 0;

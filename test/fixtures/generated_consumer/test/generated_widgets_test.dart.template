@@ -1,0 +1,49 @@
+import 'package:dotdart_generated_consumer_fixture/gen/icons.g.dart';
+import 'package:dotdart_generated_consumer_fixture/gen/images.g.dart';
+import 'package:dotdart_generated_consumer_fixture/gen/lotties.g.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('dotdart generated consumer', () {
+    testWidgets('when generated vector and raster accessors render together, it should paint without errors', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              $Icons.fixtureIcon(width: 24),
+              $Lotties.fixtureAnimation(width: 40, progress: 0.5),
+              $Images.landscape(width: 80),
+              $Images.portrait(height: 80),
+              $Images.animated(width: 40),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('when a landscape raster receives width only, it should preserve its two-to-one aspect ratio', (
+      tester,
+    ) async {
+      await tester.pumpWidget(MaterialApp(home: $Images.landscape(width: 80)));
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect((image.width, image.height), equals((80, 40)));
+    });
+
+    testWidgets('when a portrait raster receives height only, it should preserve its one-to-two aspect ratio', (
+      tester,
+    ) async {
+      await tester.pumpWidget(MaterialApp(home: $Images.portrait(height: 80)));
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect((image.width, image.height), equals((40, 80)));
+    });
+
+  });
+}

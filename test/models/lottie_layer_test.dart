@@ -23,8 +23,10 @@ void main() {
         outPoint: 25,
       );
 
-      expect((layer.name, layer.shapeGroups.length, layer.anchorX, layer.anchorY, layer.inPoint, layer.outPoint),
-          ('Layer A', 1, 10, 20, 5, 25));
+      expect(
+        (layer.name, layer.shapeGroups.length, layer.anchorX, layer.anchorY, layer.inPoint, layer.outPoint),
+        ('Layer A', 1, 10, 20, 5, 25),
+      );
     });
 
     test('when inPoint and outPoint are not provided, they should default to 0', () {

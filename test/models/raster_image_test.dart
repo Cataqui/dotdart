@@ -26,7 +26,7 @@ void main() {
 
   group('RasterImage', () {
     test('when creating a RasterImage, it should store all fields', () {
-      final image = RasterImage(
+      const image = RasterImage(
         intrinsicWidth: 1024,
         intrinsicHeight: 768,
         format: RasterImageFormat.webp,
@@ -36,19 +36,20 @@ void main() {
         thumbhash: 'test-hash',
       );
 
-      expect(image.intrinsicWidth, equals(1024));
-      expect(image.intrinsicHeight, equals(768));
-      expect(image.format, equals(RasterImageFormat.webp));
-      expect(image.isAnimated, isFalse);
-      expect(image.frameCount, equals(1));
-      expect(image.durationMs, equals(0));
-      expect(image.aspectRatio, closeTo(1.3333, 0.001));
-      expect(image.dominantColor, equals(0xFF8A6D4B));
-      expect(image.thumbhash, equals('test-hash'));
+      expect((
+        image.intrinsicWidth,
+        image.intrinsicHeight,
+        image.format,
+        image.isAnimated,
+        image.frameCount,
+        image.durationMs,
+        image.dominantColor,
+        image.thumbhash,
+      ), equals((1024, 768, RasterImageFormat.webp, false, 1, 0, 0xFF8A6D4B, 'test-hash')));
     });
 
     test('when creating an animated RasterImage, it should store frame info', () {
-      final image = RasterImage(
+      const image = RasterImage(
         intrinsicWidth: 320,
         intrinsicHeight: 240,
         format: RasterImageFormat.gif,
@@ -60,20 +61,22 @@ void main() {
         thumbhash: 'animated-hash',
       );
 
-      expect(image.intrinsicWidth, equals(320));
-      expect(image.isAnimated, isTrue);
-      expect(image.frameCount, equals(12));
-      expect(image.durationMs, equals(600));
-      expect(image.format, equals(RasterImageFormat.gif));
+      expect((
+        image.intrinsicWidth,
+        image.isAnimated,
+        image.frameCount,
+        image.durationMs,
+        image.format,
+      ), equals((320, true, 12, 600, RasterImageFormat.gif)));
     });
 
     test('when checking aspectRatio of a square image, it should equal 1.0', () {
-      final image = RasterImage(
+      const image = RasterImage(
         intrinsicWidth: 512,
         intrinsicHeight: 512,
         format: RasterImageFormat.png,
         isAnimated: false,
-        aspectRatio: 1.0,
+        aspectRatio: 1,
         dominantColor: 0xFF000000,
         thumbhash: 'square',
       );
@@ -82,7 +85,7 @@ void main() {
     });
 
     test('when checking a portrait image, the aspectRatio should be less than 1', () {
-      final image = RasterImage(
+      const image = RasterImage(
         intrinsicWidth: 768,
         intrinsicHeight: 1024,
         format: RasterImageFormat.jpeg,

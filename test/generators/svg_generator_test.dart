@@ -124,7 +124,7 @@ void main() {
       expect(code, contains('..cubicTo(10, 0, 20, 10, 24, 24)'));
     });
 
-    test('when generating code, it should include reusable fill and stroke paints', () {
+    test('when generating a fill-only asset, it should emit only the reusable fill paint', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
         children: [
@@ -137,7 +137,7 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
       final code = generator.generateWidgetClass();
 
-      expect(RegExp(r'Paint\(\)').allMatches(code).length, 2);
+      expect(RegExp(r'Paint\(\)').allMatches(code).length, 1);
     });
 
     test('when generating code, it should include the painter with shouldRepaint comparing colors', () {

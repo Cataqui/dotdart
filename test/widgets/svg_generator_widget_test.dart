@@ -5,6 +5,7 @@
 import 'dart:math' as math;
 
 import 'package:dart_style/dart_style.dart';
+import 'package:dotdart/src/generators/generated_asset_spec.dart';
 import 'package:dotdart/src/generators/namespace_assembler.dart';
 import 'package:dotdart/src/generators/svg_generator.dart';
 import 'package:dotdart/src/models/svg_document.dart';
@@ -136,19 +137,15 @@ void main() {
   });
 
   group('Generated SVG widget compile-test', () {
-    testWidgets(
-      'when a generated SVG widget is pumped with an explicit size, it should render without errors',
-      (tester) async {
-        await tester.pumpWidget(
-          const Directionality(
-            textDirection: TextDirection.ltr,
-            child: _CompileTestSvgWidget(width: 48, height: 48),
-          ),
-        );
+    testWidgets('when a generated SVG widget is pumped with an explicit size, it should render without errors', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const Directionality(textDirection: TextDirection.ltr, child: _CompileTestSvgWidget(width: 48, height: 48)),
+      );
 
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets(
       'when a generated SVG widget is pumped without an explicit size, it should fit parent constraints without errors',
@@ -156,11 +153,7 @@ void main() {
         await tester.pumpWidget(
           const Directionality(
             textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 100,
-              height: 100,
-              child: _CompileTestSvgWidget(),
-            ),
+            child: SizedBox(width: 100, height: 100, child: _CompileTestSvgWidget()),
           ),
         );
 
@@ -168,40 +161,33 @@ void main() {
       },
     );
 
-    testWidgets(
-      'when the full assembled namespace file is evaluated, it should produce valid formatted Dart',
-      (tester) async {
-        const doc = SvgDocument(
-          viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
-          children: [
-            SvgPath(
-              style: SvgStyle(fillColor: (0, 0, 0, 1)),
-              commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24), SvgClosePath()],
-            ),
-          ],
-        );
-        final generator = SvgGenerator(doc, 'assets/icons/cross.svg');
-        final asset = AssembledAsset(
-          accessorName: 'cross',
-          widgetClassName: '_Cross',
-          params: generator.params,
-          widgetSource: generator.generateWidgetClass(),
-          assetType: DotdartAssetType.svg,
-        );
-        final assembler = NamespaceAssembler(
-          namespaceName: 'Icons',
-          folderSegment: 'icons',
-          assets: [asset],
-        );
+    testWidgets('when the full assembled namespace file is evaluated, it should produce valid formatted Dart', (
+      tester,
+    ) async {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24), SvgClosePath()],
+          ),
+        ],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/cross.svg');
+      final asset = GeneratedAssetSpec(
+        sourcePath: 'assets/icons/test.svg',
+        accessorName: 'cross',
+        widgetClassName: '_Cross',
+        params: generator.params,
+        widgetSource: generator.generateWidgetClass(),
+        assetType: DotdartAssetType.svg,
+      );
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [asset]);
 
-        final code = assembler.assemble();
+      final code = assembler.assemble();
 
-        expect(
-          () => DartFormatter(languageVersion: DartFormatter.latestLanguageVersion).format(code),
-          returnsNormally,
-        );
-      },
-    );
+      expect(() => DartFormatter(languageVersion: DartFormatter.latestLanguageVersion).format(code), returnsNormally);
+    });
   });
 }
 
@@ -419,8 +405,7 @@ mixin _DotdartSvgSizing on StatelessWidget {
   Widget build(BuildContext context) {
     final hasExplicitSize = svgWidgetWidth != null || svgWidgetHeight != null;
     final aspect = svgViewBoxHeight / svgViewBoxWidth;
-    final width =
-        svgWidgetWidth ?? (svgWidgetHeight != null ? svgWidgetHeight! / aspect : svgNativeWidth);
+    final width = svgWidgetWidth ?? (svgWidgetHeight != null ? svgWidgetHeight! / aspect : svgNativeWidth);
     final height = svgWidgetHeight ?? width * aspect;
 
     if (!hasExplicitSize) {
@@ -477,10 +462,7 @@ class _CompileTestSvgWidget extends StatelessWidget with _DotdartSvgSizing {
   Widget buildPainter({required double width, required double height}) {
     return SizedBox.fromSize(
       size: Size(width, height),
-      child: CustomPaint(
-        painter: _CompileTestPainter(),
-        size: Size(width, height),
-      ),
+      child: CustomPaint(painter: _CompileTestPainter(), size: Size(width, height)),
     );
   }
 }

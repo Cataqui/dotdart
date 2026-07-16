@@ -4,54 +4,8 @@
 
 import 'package:dart_style/dart_style.dart';
 
-import 'accessor_param.dart';
+import 'generated_asset_spec.dart';
 import 'shared_emit.dart';
-
-/// The kind of asset a generated widget represents.
-///
-/// Determines which shared mixins/helpers [NamespaceAssembler] emits at the
-/// top of the file.
-enum DotdartAssetType {
-  /// A static SVG widget (uses `_DotdartSvgSizing` mixin).
-  svg,
-
-  /// An animated Lottie widget (uses `_DotdartLottieAnimationState` mixin).
-  lottie,
-
-  /// A raster image widget (uses thumbhash decoder + frameBuilder).
-  raster,
-}
-
-/// A single asset ready to be placed into a namespace file.
-class AssembledAsset {
-  const AssembledAsset({
-    required this.accessorName,
-    required this.widgetClassName,
-    required this.params,
-    required this.widgetSource,
-    required this.assetType,
-    this.cacheKey,
-  });
-
-  /// lowerCamelCase accessor name (e.g. `cross`, `exclamationCircle`).
-  final String accessorName;
-
-  /// PascalCase widget class name (e.g. `Cross`, `ExclamationCircle`).
-  final String widgetClassName;
-
-  /// Constructor parameters of the generated widget.
-  final List<AccessorParam> params;
-
-  /// Raw Dart source of the widget class(es) and painter.
-  /// No header, no imports — not pre-formatted.
-  final String widgetSource;
-
-  /// The asset type, used to determine which shared code to emit.
-  final DotdartAssetType assetType;
-
-  /// The asset cache key (raster assets only). Null for non-raster types.
-  final String? cacheKey;
-}
 
 /// Assembles a complete `.g.dart` file for one namespace.
 ///
@@ -64,11 +18,7 @@ class AssembledAsset {
 /// The [namespaceName] is the PascalCase identifier (e.g. `Icons` — the
 /// assembler prepends `$` for the class name).
 class NamespaceAssembler {
-  NamespaceAssembler({
-    required this.namespaceName,
-    required this.folderSegment,
-    required this.assets,
-  });
+  NamespaceAssembler({required this.namespaceName, required this.folderSegment, required this.assets});
 
   /// PascalCase namespace name without the `$` prefix (e.g. `Icons`).
   final String namespaceName;
@@ -76,8 +26,8 @@ class NamespaceAssembler {
   /// Lowercase folder segment for the doc comment (e.g. `icons`).
   final String folderSegment;
 
-  /// Assets sorted alphabetically by [AssembledAsset.accessorName].
-  final List<AssembledAsset> assets;
+  /// Assets sorted alphabetically by [GeneratedAssetSpec.accessorName].
+  final List<GeneratedAssetSpec> assets;
 
   /// Produces the complete, formatted Dart source for the namespace file.
   String assemble() {
@@ -101,20 +51,26 @@ class NamespaceAssembler {
     b.writeln('// *****************************************************');
     b.writeln();
     b.writeln('// coverage:ignore-file');
-    b.writeln('// ignore_for_file: type=lint, unused_import, unused_element, unused_element_parameter');
+    b.writeln('// Generated canvas and paint sequences intentionally use repeated receiver calls.');
+    b.writeln('// ignore_for_file: cascade_invocations, unused_element, unused_element_parameter');
     b.writeln();
   }
 
   void _writeImports(StringBuffer b) {
+    final types = assets.map((asset) => asset.assetType).toSet();
     b.writeln("import 'dart:math' as math;");
     b.writeln("import 'package:flutter/material.dart';");
-    b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
+    if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {
+      b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
+    }
     b.writeln();
   }
 
   void _writeSharedCode(StringBuffer b) {
     final types = assets.map((a) => a.assetType).toSet();
-    b.write(SharedEmitter.applyOpacityFunction());
+    if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {
+      b.write(SharedEmitter.applyOpacityFunction());
+    }
     if (types.contains(DotdartAssetType.svg)) {
       b.write(SharedEmitter.svgSizingMixin());
     }
@@ -153,13 +109,16 @@ class NamespaceAssembler {
       b.writeln('  /// Call during app bootstrap (off the critical path) to warm the image');
       b.writeln('  /// cache so the first render never stalls on a cold decode.');
       b.writeln('  static Future<void> precache(BuildContext context) async {');
-      b.writeln('    await Future.wait([');
-      for (final asset in assets) {
+      final rasterAssets = assets.where((asset) => asset.cacheKey != null).toList(growable: false);
+      for (var index = 0; index < rasterAssets.length; index++) {
+        final asset = rasterAssets[index];
         if (asset.cacheKey != null) {
-          b.writeln("      precacheImage(AssetImage('${asset.cacheKey}'), context),");
+          b.writeln("    await precacheImage(const AssetImage('${asset.cacheKey}'), context);");
+          if (index < rasterAssets.length - 1) {
+            b.writeln('    if (!context.mounted) return;');
+          }
         }
       }
-      b.writeln('    ]);');
       b.writeln('  }');
       b.writeln();
     }
@@ -168,25 +127,19 @@ class NamespaceAssembler {
     b.writeln();
   }
 
-  void _writeAccessorMethod(StringBuffer b, AssembledAsset asset) {
+  void _writeAccessorMethod(StringBuffer b, GeneratedAssetSpec asset) {
     final docPrefix = asset.accessorName[0].toUpperCase() + asset.accessorName.substring(1);
-    final fileExt = switch (asset.assetType) {
-      DotdartAssetType.svg => 'svg',
-      DotdartAssetType.lottie => 'json',
-      DotdartAssetType.raster => 'image',
-    };
+    final fileExt = asset.assetType.documentationExtension;
     b.writeln('  /// Builds the `$docPrefix` widget from `${asset.accessorName}.$fileExt`.');
     b.writeln('  static Widget ${asset.accessorName}({');
 
     for (var i = 0; i < asset.params.length; i++) {
       final param = asset.params[i];
       if (param.required) {
-        b.writeln('    required ${param.type} ${param.name},');
-      } else if (param.defaultValue != null) {
-        b.writeln('    ${param.type} ${param.name} = ${param.defaultValue},');
-      } else {
-        b.writeln('    ${param.type} ${param.name},');
+        b.writeln('    ${param.signature},');
+        continue;
       }
+      b.writeln('    ${param.signature},');
     }
 
     b.writeln('  }) =>');

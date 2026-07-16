@@ -23,17 +23,29 @@ class LottieGenerator {
   /// Returns the constructor parameters of the generated widget.
   ///
   /// Used by `NamespaceAssembler` to emit matching accessor methods.
-  List<AccessorParam> get params {
-    final colors = _extractColors();
+  List<AccessorParam> get params => _paramsFor(_extractColors());
+
+  List<AccessorParam> _paramsFor(List<_ColorEntry> colors) {
     final result = <AccessorParam>[
       const AccessorParam(name: 'key', type: 'Key?'),
-      const AccessorParam(name: 'width', type: 'double?'),
-      const AccessorParam(name: 'height', type: 'double?'),
-      const AccessorParam(name: 'progress', type: 'double?'),
-      const AccessorParam(name: 'respectDisableAnimations', type: 'bool', defaultValue: 'true'),
+      const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
+      const AccessorParam(name: 'height', type: 'double?', documentation: 'Height in logical pixels.'),
+      const AccessorParam(name: 'progress', type: 'double?', documentation: 'Fixed animation progress from 0 to 1.'),
+      const AccessorParam(
+        name: 'respectDisableAnimations',
+        type: 'bool',
+        defaultValue: 'true',
+        documentation: 'Whether reduced-motion settings pause playback.',
+      ),
     ];
     for (final color in colors) {
-      result.add(AccessorParam(name: 'color${color.index}', type: 'Color?'));
+      result.add(
+        AccessorParam(
+          name: 'color${color.index}',
+          type: 'Color?',
+          documentation: 'Color ${color.index} — defaults to ${_colorToHex(color.r, color.g, color.b, color.a)}.',
+        ),
+      );
     }
     return result;
   }
@@ -134,14 +146,9 @@ class LottieGenerator {
     b.writeln('/// entirely via [CustomPainter].');
     b.writeln('class $className extends StatefulWidget {');
     b.writeln('  const $className({');
-    b.writeln('    super.key,');
-    b.writeln('    this.width,');
-    b.writeln('    this.height,');
-    b.writeln('    this.progress,');
-    b.writeln('    this.respectDisableAnimations = true,');
-
-    for (final color in colors) {
-      b.writeln('    this.color${color.index},');
+    final widgetParams = _paramsFor(colors);
+    for (final param in widgetParams) {
+      b.writeln('    ${param.constructorInitializer},');
     }
 
     b.writeln('  });');
@@ -151,35 +158,10 @@ class LottieGenerator {
     b.writeln('  static const int _totalFrames = ${animation.totalFrames};');
     b.writeln('  static const Duration _loopDuration = Duration(milliseconds: ${animation.durationMs});');
     b.writeln();
-    b.writeln('  /// Width in logical pixels.');
-    b.writeln('  ///');
-    b.writeln('  /// When only [width] is set, [height] is derived from the Lottie');
-    b.writeln('  /// aspect ratio. Explicit sizes are painted at the requested size,');
-    b.writeln('  /// even when that overflows tighter parent constraints.');
-    b.writeln('  final double? width;');
-    b.writeln();
-    b.writeln('  /// Height in logical pixels.');
-    b.writeln('  ///');
-    b.writeln('  /// When only [height] is set, [width] is derived from the Lottie');
-    b.writeln('  /// aspect ratio. Explicit sizes are painted at the requested size,');
-    b.writeln('  /// even when that overflows tighter parent constraints.');
-    b.writeln('  final double? height;');
-    b.writeln();
-    b.writeln('  /// Fixed animation progress from 0 to 1.');
-    b.writeln('  ///');
-    b.writeln('  /// When null, the generated widget loops automatically. When supplied,');
-    b.writeln('  /// playback stops and the painter renders exactly this timeline position.');
-    b.writeln('  /// Values outside 0 to 1 are clamped before painting.');
-    b.writeln('  final double? progress;');
-    b.writeln();
-    b.writeln('  /// Whether platform reduced-motion settings should pause playback.');
-    b.writeln('  final bool respectDisableAnimations;');
-    b.writeln();
-
-    for (final color in colors) {
-      final hex = _colorToHex(color.r, color.g, color.b, color.a);
-      b.writeln('  /// Color ${color.index} — defaults to $hex.');
-      b.writeln('  final Color? color${color.index};');
+    for (final param in widgetParams) {
+      final fieldDeclaration = param.fieldDeclaration;
+      if (fieldDeclaration == null) continue;
+      b.write(fieldDeclaration);
       b.writeln();
     }
 
@@ -253,16 +235,13 @@ class LottieGenerator {
     final curves = _extractCurves();
     b.writeln('class _$baseName' + 'Painter extends CustomPainter {');
     b.writeln('  _$baseName' + 'Painter({');
-    b.writeln('    required double fixedProgress,');
-    b.writeln('    Animation<double>? animationProgress,');
+    b.writeln('    required this._fixedProgress,');
 
     for (final color in colors) {
       b.writeln('    required this.color${color.index},');
     }
-
-    b.writeln('  })  : _fixedProgress = fixedProgress,');
-    b.writeln('        _animationProgress = animationProgress,');
-    b.writeln('        super(repaint: animationProgress);');
+    b.writeln('    this._animationProgress,');
+    b.writeln('  }) : super(repaint: _animationProgress);');
     b.writeln();
 
     b.writeln('  final double _fixedProgress;');
@@ -336,14 +315,14 @@ class LottieGenerator {
   void _writeKeyframeData(StringBuffer b, List<_CurveEntry> curves) {
     for (var i = 0; i < animation.layers.length; i++) {
       final layer = animation.layers[i];
-      final prefix = '_kf$i';
+      final prefix = '_keyframes$i';
 
-      _writeScalarKeyframes(b, '${prefix}_opacity', layer.opacity, curves);
-      _writeScalarKeyframes(b, '${prefix}_rotation', layer.rotation, curves);
-      _writeScalarKeyframes(b, '${prefix}_posX', layer.positionX, curves);
-      _writeScalarKeyframes(b, '${prefix}_posY', layer.positionY, curves);
-      _writeScalarKeyframes(b, '${prefix}_scaleX', layer.scaleX, curves);
-      _writeScalarKeyframes(b, '${prefix}_scaleY', layer.scaleY, curves);
+      _writeScalarKeyframes(b, '${prefix}Opacity', layer.opacity, curves);
+      _writeScalarKeyframes(b, '${prefix}Rotation', layer.rotation, curves);
+      _writeScalarKeyframes(b, '${prefix}PositionX', layer.positionX, curves);
+      _writeScalarKeyframes(b, '${prefix}PositionY', layer.positionY, curves);
+      _writeScalarKeyframes(b, '${prefix}ScaleX', layer.scaleX, curves);
+      _writeScalarKeyframes(b, '${prefix}ScaleY', layer.scaleY, curves);
     }
   }
 
@@ -589,26 +568,26 @@ class LottieGenerator {
 
     final staticOpacity = _fmt(_staticScalarValue(layer.opacity, fallback: 100) / 100);
     if (hasOpacity) {
-      b.writeln('    final layerOpacity = _kf${index}_opacity(frame) / 100;');
+      b.writeln('    final layerOpacity = _keyframes${index}Opacity(frame) / 100;');
     } else {
       b.writeln('    const double layerOpacity = $staticOpacity;');
     }
     b.writeln('    if (layerOpacity <= 0) return;');
 
     if (hasRotation) {
-      b.writeln('    final rotation = _kf${index}_rotation(frame);');
+      b.writeln('    final rotation = _keyframes${index}Rotation(frame);');
     }
     if (hasPosX) {
-      b.writeln('    final posX = _kf${index}_posX(frame);');
+      b.writeln('    final posX = _keyframes${index}PositionX(frame);');
     }
     if (hasPosY) {
-      b.writeln('    final posY = _kf${index}_posY(frame);');
+      b.writeln('    final posY = _keyframes${index}PositionY(frame);');
     }
     if (hasScaleX) {
-      b.writeln('    final scaleX = _kf${index}_scaleX(frame) / 100;');
+      b.writeln('    final scaleX = _keyframes${index}ScaleX(frame) / 100;');
     }
     if (hasScaleY) {
-      b.writeln('    final scaleY = _kf${index}_scaleY(frame) / 100;');
+      b.writeln('    final scaleY = _keyframes${index}ScaleY(frame) / 100;');
     }
 
     // Apply transform
@@ -952,7 +931,10 @@ class LottieGenerator {
     required double width,
     required double height,
   }) {
-    return 'Rect.fromCenter(center: const Offset(${_fmt(positionX)}, ${_fmt(positionY)}), '
+    final center = positionX == 0 && positionY == 0
+        ? 'Offset.zero'
+        : 'const Offset(${_fmt(positionX)}, ${_fmt(positionY)})';
+    return 'Rect.fromCenter(center: $center, '
         'width: ${_fmt(width)}, height: ${_fmt(height)})';
   }
 
@@ -1022,7 +1004,10 @@ class LottieGenerator {
   }
 
   String _sanitizeMethodName(String name) {
-    return name.replaceAll(RegExp('[^a-zA-Z0-9_]'), '_').replaceAll(RegExp('_+'), '_').replaceAll(RegExp(r'^_|_$'), '');
+    final words = name.split(RegExp('[^A-Za-z0-9]+')).where((word) => word.isNotEmpty).toList();
+    if (words.isEmpty) return 'drawLayer';
+    return words.first.toLowerCase() +
+        words.skip(1).map((word) => '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}').join();
   }
 
   String _fmt(double v) {

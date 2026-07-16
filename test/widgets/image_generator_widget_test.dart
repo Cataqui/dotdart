@@ -1,16 +1,15 @@
 import 'package:dotdart/src/generators/image_generator.dart';
 import 'package:dotdart/src/models/raster_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ImageGenerator widget', () {
-    final fixture = RasterImage(
+    const fixture = RasterImage(
       intrinsicWidth: 16,
       intrinsicHeight: 16,
       format: RasterImageFormat.png,
       isAnimated: false,
-      aspectRatio: 1.0,
+      aspectRatio: 1,
       dominantColor: 0xFF000000,
       thumbhash: 'testhash',
     );

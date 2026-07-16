@@ -50,6 +50,18 @@ class LottieParser {
   /// `h`, `layers`). Non-shape layers (`ty` other than 4) are skipped with a
   /// warning message returned in the result.
   static LottieParseResult parse(String jsonString) {
+    try {
+      return _parse(jsonString);
+    } on DotdartInvalidLottieException {
+      rethrow;
+    } on FormatException catch (error) {
+      throw DotdartInvalidLottieException('Invalid JSON at \$: ${error.message}');
+    } on Object catch (error) {
+      throw DotdartInvalidLottieException('Malformed Lottie value at \$: $error');
+    }
+  }
+
+  static LottieParseResult _parse(String jsonString) {
     final decoded = json.decode(jsonString);
     if (decoded is! Map<String, dynamic>) {
       throw const DotdartInvalidLottieException('Expected the Lottie file root to be a JSON object.');
@@ -69,11 +81,15 @@ class LottieParser {
     }
 
     final nm = root['nm'] as String? ?? '';
-    final layersRaw = root['layers'] as List<dynamic>? ?? [];
+    final layersRaw = _optionalList(root['layers'], path: r'$.layers');
 
     final layers = <LottieLayer>[];
-    for (final layerRaw in layersRaw) {
-      final layer = _parseLayer(layerRaw as Map<String, dynamic>, warnings);
+    for (var index = 0; index < layersRaw.length; index++) {
+      final layer = _parseLayer(
+        _requiredMap(layersRaw[index], path: '\$.layers[$index]'),
+        warnings,
+        path: '\$.layers[$index]',
+      );
       if (layer != null) {
         layers.add(layer);
       }
@@ -93,7 +109,7 @@ class LottieParser {
     );
   }
 
-  static LottieLayer? _parseLayer(Map<String, dynamic> raw, List<String> warnings) {
+  static LottieLayer? _parseLayer(Map<String, dynamic> raw, List<String> warnings, {required String path}) {
     final ty = raw['ty'] as int?;
     if (ty == null) return null;
 
@@ -104,14 +120,15 @@ class LottieParser {
     }
 
     final nm = raw['nm'] as String? ?? '';
-    final ks = raw['ks'] as Map<String, dynamic>? ?? {};
-    final shapesRaw = raw['shapes'] as List<dynamic>? ?? [];
+    final ks = _optionalMap(raw['ks'], path: '$path.ks');
+    final shapesRaw = _optionalList(raw['shapes'], path: '$path.shapes');
     final ip = (raw['ip'] as num?)?.toInt() ?? 0;
     final op = (raw['op'] as num?)?.toInt() ?? 0;
 
     final shapeGroups = <LottieGroup>[];
-    for (final shapeRaw in shapesRaw) {
-      final group = _parseShapeGroup(shapeRaw as Map<String, dynamic>, warnings);
+    for (var index = 0; index < shapesRaw.length; index++) {
+      final shapePath = '$path.shapes[$index]';
+      final group = _parseShapeGroup(_requiredMap(shapesRaw[index], path: shapePath), warnings, path: shapePath);
       if (group != null) {
         shapeGroups.add(group);
       }
@@ -133,7 +150,7 @@ class LottieParser {
     );
   }
 
-  static LottieGroup? _parseShapeGroup(Map<String, dynamic> raw, List<String> warnings) {
+  static LottieGroup? _parseShapeGroup(Map<String, dynamic> raw, List<String> warnings, {required String path}) {
     final ty = raw['ty'] as String?;
     if (ty != 'gr') {
       warnings.add('Skipping non-group shape (ty: "$ty") — only groups (ty: "gr") are supported at the top level.');
@@ -141,11 +158,12 @@ class LottieParser {
     }
 
     final nm = raw['nm'] as String? ?? '';
-    final it = raw['it'] as List<dynamic>? ?? [];
+    final it = _optionalList(raw['it'], path: '$path.it');
 
     final items = <LottieShape>[];
-    for (final itemRaw in it) {
-      final item = _parseShapeItem(itemRaw as Map<String, dynamic>, warnings);
+    for (var index = 0; index < it.length; index++) {
+      final itemPath = '$path.it[$index]';
+      final item = _parseShapeItem(_requiredMap(it[index], path: itemPath), warnings);
       if (item != null) {
         items.add(item);
       }
@@ -428,6 +446,22 @@ class LottieParser {
     }
 
     return value.toInt();
+  }
+
+  static Map<String, dynamic> _requiredMap(Object? value, {required String path}) {
+    if (value is Map<String, dynamic>) return value;
+    throw DotdartInvalidLottieException('Expected an object at $path.');
+  }
+
+  static Map<String, dynamic> _optionalMap(Object? value, {required String path}) {
+    if (value == null) return const {};
+    return _requiredMap(value, path: path);
+  }
+
+  static List<dynamic> _optionalList(Object? value, {required String path}) {
+    if (value == null) return const [];
+    if (value is List<dynamic>) return value;
+    throw DotdartInvalidLottieException('Expected a list at $path.');
   }
 }
 

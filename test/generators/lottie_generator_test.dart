@@ -172,7 +172,7 @@ void main() {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('_draw_Layer_1_0'));
+      expect(code, contains('_drawLayer10'));
     });
 
     test('when generating code, it should include the rect drawing code', () {
@@ -627,7 +627,7 @@ void main() {
       expect(
         code,
         allOf(
-          contains('double _kf0_opacity(double frame)'),
+          contains('double _keyframes0Opacity(double frame)'),
           contains('final t = frame / 60;'),
           isNot(contains('List<_DotdartScalarKeyframe>')),
           isNot(contains('for (var i = 0; i < kfs.length - 1; i++)')),
@@ -719,7 +719,7 @@ void main() {
       final generator = LottieGenerator(constantAnimation, 'assets/lottie/constant_transform.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('canvas.translate(25, 0);'), isNot(contains('_kf0_posX'))));
+      expect(code, allOf(contains('canvas.translate(25, 0);'), isNot(contains('_keyframes0PositionX'))));
     });
 
     test('when one animated segment has no value delta, it should skip easing work for that segment', () {
@@ -793,7 +793,7 @@ void main() {
       final generator = LottieGenerator(multiLayer, 'assets/lottie/multi_layer.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('_draw_Layer_A_0'), contains('_draw_Layer_B_1')));
+      expect(code, allOf(contains('_drawLayerA0'), contains('_drawLayerB1')));
     });
 
     test('when generating code with multiple layers, it should paint later Lottie layers behind earlier layers', () {
@@ -813,7 +813,7 @@ void main() {
       final code = generator.generateWidgetClass();
 
       expect(
-        code.indexOf('_draw_Bottom_Layer_1(canvas, frame);') < code.indexOf('_draw_Top_Layer_0(canvas, frame);'),
+        code.indexOf('_drawBottomLayer1(canvas, frame);') < code.indexOf('_drawTopLayer0(canvas, frame);'),
         isTrue,
       );
     });

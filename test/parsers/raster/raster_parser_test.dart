@@ -1,7 +1,7 @@
-import 'package:image/image.dart' as img;
 import 'package:dotdart/src/models/raster_image.dart';
 import 'package:dotdart/src/parsers/raster/raster_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   group('RasterParser', () {
@@ -102,18 +102,12 @@ void main() {
     });
 
     test('when parsing an empty byte array, it should throw FormatException', () {
-      expect(
-        () => RasterParser.parse([]),
-        throwsA(isA<FormatException>()),
-      );
+      expect(() => RasterParser.parse([]), throwsA(isA<FormatException>()));
     });
 
     test('when parsing an unsupported format (AVIF-like bytes), it should throw FormatException', () {
       final bytes = <int>[0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66];
-      expect(
-        () => RasterParser.parse(bytes),
-        throwsA(isA<FormatException>()),
-      );
+      expect(() => RasterParser.parse(bytes), throwsA(isA<FormatException>()));
     });
   });
 }
@@ -139,4 +133,3 @@ img.Image _createSolidImage({required int r, required int g, required int b, req
   }
   return image;
 }
-

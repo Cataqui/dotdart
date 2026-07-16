@@ -9,10 +9,14 @@ import 'svg_transform.dart' show SvgTransform;
 /// Exception thrown when an SVG file is structurally invalid or malformed.
 class DotdartInvalidSvgException implements FormatException {
   const DotdartInvalidSvgException(this.message);
-  @override final String message;
-  @override int? get offset => null;
-  @override Object? get source => null;
-  @override String toString() => 'DotdartInvalidSvgException: $message';
+  @override
+  final String message;
+  @override
+  int? get offset => null;
+  @override
+  Object? get source => null;
+  @override
+  String toString() => 'DotdartInvalidSvgException: $message';
 }
 
 /// Result of parsing an SVG XML string.
@@ -56,12 +60,7 @@ class SvgParser {
     final children = _parseChildren(root, rootStyle);
 
     return SvgParseResult(
-      document: SvgDocument(
-        viewBox: viewBox,
-        width: width,
-        height: height,
-        children: children,
-      ),
+      document: SvgDocument(viewBox: viewBox, width: width, height: height, children: children),
       warnings: List.unmodifiable(_warnings),
     );
   }
@@ -120,14 +119,18 @@ class SvgParser {
       case 'use':
       case 'symbol':
       case 'defs':
-        throw DotdartUnsupportedFeatureException('<${element.tag}> references are not supported. Inline all shapes directly.');
+        throw DotdartUnsupportedFeatureException(
+          '<${element.tag}> references are not supported. Inline all shapes directly.',
+        );
       case 'text':
       case 'tspan':
         throw const DotdartUnsupportedFeatureException('Text elements are not supported.');
       case 'image':
         throw const DotdartUnsupportedFeatureException('Embedded images are not supported.');
       case 'style':
-        throw const DotdartUnsupportedFeatureException('CSS <style> blocks are not supported. Use presentation attributes only.');
+        throw const DotdartUnsupportedFeatureException(
+          'CSS <style> blocks are not supported. Use presentation attributes only.',
+        );
       case 'filter':
       case 'mask':
       case 'clipPath':
@@ -201,7 +204,17 @@ class SvgParser {
     final y1 = _parseLength(element.attrs['y1']) ?? 0;
     final x2 = _parseLength(element.attrs['x2']) ?? 0;
     final y2 = _parseLength(element.attrs['y2']) ?? 0;
-    final lineStyle = SvgStyle(fillColor: null, strokeColor: inherited.strokeColor, strokeOpacity: inherited.strokeOpacity, strokeWidth: inherited.strokeWidth, strokeLineCap: inherited.strokeLineCap, strokeLineJoin: inherited.strokeLineJoin, fillRule: inherited.fillRule, opacity: inherited.opacity, fillOpacity: inherited.fillOpacity);
+    final lineStyle = SvgStyle(
+      fillColor: null,
+      strokeColor: inherited.strokeColor,
+      strokeOpacity: inherited.strokeOpacity,
+      strokeWidth: inherited.strokeWidth,
+      strokeLineCap: inherited.strokeLineCap,
+      strokeLineJoin: inherited.strokeLineJoin,
+      fillRule: inherited.fillRule,
+      opacity: inherited.opacity,
+      fillOpacity: inherited.fillOpacity,
+    );
     final style = _resolveStyle(element, lineStyle);
     return SvgLine(style: style, x1: x1, y1: y1, x2: x2, y2: y2);
   }
@@ -239,10 +252,18 @@ class SvgParser {
     final strokeColor = strokeRaw != null ? _parseColor(strokeRaw) : _inheritColor;
 
     return SvgStyle(
-      fillColor: fillColor is _ConcreteColor ? fillColor.value : fillColor is _NoneColor ? null : inherited.fillColor,
+      fillColor: fillColor is _ConcreteColor
+          ? fillColor.value
+          : fillColor is _NoneColor
+          ? null
+          : inherited.fillColor,
       fillOpacity: _parseOptionalOpacity(element.attrs['fill-opacity']) ?? inherited.fillOpacity,
       fillRule: _parseFillRule(element.attrs['fill-rule']) ?? inherited.fillRule,
-      strokeColor: strokeColor is _ConcreteColor ? strokeColor.value : strokeColor is _NoneColor ? null : inherited.strokeColor,
+      strokeColor: strokeColor is _ConcreteColor
+          ? strokeColor.value
+          : strokeColor is _NoneColor
+          ? null
+          : inherited.strokeColor,
       strokeOpacity: _parseOptionalOpacity(element.attrs['stroke-opacity']) ?? inherited.strokeOpacity,
       strokeWidth: _parseStrokeWidth(element) ?? inherited.strokeWidth,
       strokeLineCap: _parseLineCap(element.attrs['stroke-linecap']) ?? inherited.strokeLineCap,
@@ -304,6 +325,7 @@ class SvgParser {
       if (s.endsWith('%')) return ((double.parse(s.substring(0, s.length - 1)) / 100) * 255).round().clamp(0, 255);
       return int.tryParse(s) ?? 0;
     }
+
     final r = parseComponent(parts[0]);
     final g = parseComponent(parts[1]);
     final b = parseComponent(parts[2]);
@@ -324,14 +346,24 @@ class SvgParser {
   (double, double, double, double)? _namedColor(String name) => _namedColors[name.toLowerCase()];
 
   static const _namedColors = <String, (double, double, double, double)>{
-    'black': (0, 0, 0, 1), 'white': (1, 1, 1, 1), 'red': (1, 0, 0, 1),
-    'green': (0, 0.50196078, 0, 1), 'blue': (0, 0, 1, 1), 'yellow': (1, 1, 0, 1),
-    'gray': (0.50196078, 0.50196078, 0.50196078, 1), 'grey': (0.50196078, 0.50196078, 0.50196078, 1),
-    'silver': (0.75294118, 0.75294118, 0.75294118, 1), 'maroon': (0.50196078, 0, 0, 1),
-    'purple': (0.50196078, 0, 0.50196078, 1), 'fuchsia': (1, 0, 1, 1),
-    'lime': (0, 1, 0, 1), 'olive': (0.50196078, 0.50196078, 0, 1),
-    'navy': (0, 0, 0.50196078, 1), 'teal': (0, 0.50196078, 0.50196078, 1),
-    'aqua': (0, 1, 1, 1), 'orange': (1, 0.64705882, 0, 1),
+    'black': (0, 0, 0, 1),
+    'white': (1, 1, 1, 1),
+    'red': (1, 0, 0, 1),
+    'green': (0, 0.50196078, 0, 1),
+    'blue': (0, 0, 1, 1),
+    'yellow': (1, 1, 0, 1),
+    'gray': (0.50196078, 0.50196078, 0.50196078, 1),
+    'grey': (0.50196078, 0.50196078, 0.50196078, 1),
+    'silver': (0.75294118, 0.75294118, 0.75294118, 1),
+    'maroon': (0.50196078, 0, 0, 1),
+    'purple': (0.50196078, 0, 0.50196078, 1),
+    'fuchsia': (1, 0, 1, 1),
+    'lime': (0, 1, 0, 1),
+    'olive': (0.50196078, 0.50196078, 0, 1),
+    'navy': (0, 0, 0.50196078, 1),
+    'teal': (0, 0.50196078, 0.50196078, 1),
+    'aqua': (0, 1, 1, 1),
+    'orange': (1, 0.64705882, 0, 1),
     'pink': (1, 0.75294118, 0.79607843, 1),
   };
 
@@ -347,17 +379,28 @@ class SvgParser {
 
   SvgFillRule? _parseFillRule(String? raw) {
     if (raw == null) return null;
-    return switch (raw.trim()) { 'evenodd' => SvgFillRule.evenodd, _ => SvgFillRule.nonzero, };
+    return switch (raw.trim()) {
+      'evenodd' => SvgFillRule.evenodd,
+      _ => SvgFillRule.nonzero,
+    };
   }
 
   SvgStrokeLineCap? _parseLineCap(String? raw) {
     if (raw == null) return null;
-    return switch (raw.trim()) { 'round' => SvgStrokeLineCap.round, 'square' => SvgStrokeLineCap.square, _ => SvgStrokeLineCap.butt, };
+    return switch (raw.trim()) {
+      'round' => SvgStrokeLineCap.round,
+      'square' => SvgStrokeLineCap.square,
+      _ => SvgStrokeLineCap.butt,
+    };
   }
 
   SvgStrokeLineJoin? _parseLineJoin(String? raw) {
     if (raw == null) return null;
-    return switch (raw.trim()) { 'round' => SvgStrokeLineJoin.round, 'bevel' => SvgStrokeLineJoin.bevel, _ => SvgStrokeLineJoin.miter, };
+    return switch (raw.trim()) {
+      'round' => SvgStrokeLineJoin.round,
+      'bevel' => SvgStrokeLineJoin.bevel,
+      _ => SvgStrokeLineJoin.miter,
+    };
   }
 
   double? _parseStrokeWidth(XElement element) {

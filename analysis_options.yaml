@@ -1,1 +1,6 @@
 include: ../../analysis_options.yaml
+
+analyzer:
+  exclude:
+    # The fixture is copied into build/, generated, and analyzed as its own package.
+    - test/fixtures/generated_consumer/**

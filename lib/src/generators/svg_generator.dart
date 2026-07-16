@@ -20,15 +20,22 @@ class SvgGenerator {
   /// Returns the constructor parameters of the generated SVG widget.
   ///
   /// Used by `NamespaceAssembler` to emit matching accessor methods.
-  List<AccessorParam> get params {
-    final colors = _extractColors();
+  List<AccessorParam> get params => _paramsFor(_extractColors());
+
+  List<AccessorParam> _paramsFor(List<_ColorEntry> colors) {
     final result = <AccessorParam>[
       const AccessorParam(name: 'key', type: 'Key?'),
-      const AccessorParam(name: 'width', type: 'double?'),
-      const AccessorParam(name: 'height', type: 'double?'),
+      const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
+      const AccessorParam(name: 'height', type: 'double?', documentation: 'Height in logical pixels.'),
     ];
     for (final color in colors) {
-      result.add(AccessorParam(name: 'color${color.index}', type: 'Color?'));
+      result.add(
+        AccessorParam(
+          name: 'color${color.index}',
+          type: 'Color?',
+          documentation: 'Color ${color.index} — defaults to ${_colorToHex(color.r, color.g, color.b, color.a)}.',
+        ),
+      );
     }
     return result;
   }
@@ -93,12 +100,9 @@ class SvgGenerator {
     b.writeln('/// No flutter_svg runtime dependency — drawn entirely via [CustomPainter].');
     b.writeln('class $name extends StatelessWidget with _DotdartSvgSizing {');
     b.writeln('  const $name({');
-    b.writeln('    super.key,');
-    b.writeln('    this.width,');
-    b.writeln('    this.height,');
-
-    for (final color in colors) {
-      b.writeln('    this.color${color.index},');
+    final widgetParams = _paramsFor(colors);
+    for (final param in widgetParams) {
+      b.writeln('    ${param.constructorInitializer},');
     }
 
     b.writeln('  });');
@@ -110,24 +114,10 @@ class SvgGenerator {
     b.writeln('  static const double _viewBoxWidth = ${_fmt(document.viewBox.width)};');
     b.writeln('  static const double _viewBoxHeight = ${_fmt(document.viewBox.height)};');
     b.writeln();
-    b.writeln('  /// Width in logical pixels.');
-    b.writeln('  ///');
-    b.writeln('  /// When only [width] is set, [height] is derived from the SVG viewBox');
-    b.writeln('  /// aspect ratio. Explicit sizes are painted at the requested size,');
-    b.writeln('  /// even when that overflows tighter parent constraints.');
-    b.writeln('  final double? width;');
-    b.writeln();
-    b.writeln('  /// Height in logical pixels.');
-    b.writeln('  ///');
-    b.writeln('  /// When only [height] is set, [width] is derived from the SVG viewBox');
-    b.writeln('  /// aspect ratio.');
-    b.writeln('  final double? height;');
-    b.writeln();
-
-    for (final color in colors) {
-      final hex = _colorToHex(color.r, color.g, color.b, color.a);
-      b.writeln('  /// Color ${color.index} — defaults to $hex.');
-      b.writeln('  final Color? color${color.index};');
+    for (final param in widgetParams) {
+      final fieldDeclaration = param.fieldDeclaration;
+      if (fieldDeclaration == null) continue;
+      b.write(fieldDeclaration);
       b.writeln();
     }
 
@@ -161,7 +151,7 @@ class SvgGenerator {
       b.writeln('          painter: _$painterName' + 'Painter(');
       for (final color in colors) {
         final hex = _colorToHex(color.r, color.g, color.b, color.a);
-        b.writeln('            color${color.index}: this.color${color.index} ?? const Color($hex),');
+        b.writeln('            color${color.index}: color${color.index} ?? const Color($hex),');
       }
       b.writeln('          ),');
     } else {
@@ -203,8 +193,12 @@ class SvgGenerator {
       b.writeln('  final Color color${color.index};');
     }
     if (colors.isNotEmpty) b.writeln();
-    b.writeln('  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;');
-    b.writeln('  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;');
+    if (_usesFill(document.children)) {
+      b.writeln('  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;');
+    }
+    if (_usesStroke(document.children)) {
+      b.writeln('  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;');
+    }
     b.writeln();
 
     // ── Geometry emission (walk, emit static fields) ──
@@ -571,6 +565,22 @@ class SvgGenerator {
       SvgStrokeLineJoin.round => 'StrokeJoin.round',
       SvgStrokeLineJoin.bevel => 'StrokeJoin.bevel',
     };
+  }
+
+  bool _usesFill(List<SvgElement> elements) {
+    for (final element in elements) {
+      if (element.style.fillColor != null) return true;
+      if (element is SvgGroup && _usesFill(element.children)) return true;
+    }
+    return false;
+  }
+
+  bool _usesStroke(List<SvgElement> elements) {
+    for (final element in elements) {
+      if (element.style.strokeColor != null) return true;
+      if (element is SvgGroup && _usesStroke(element.children)) return true;
+    }
+    return false;
   }
 }
 

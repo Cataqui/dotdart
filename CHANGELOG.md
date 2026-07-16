@@ -1,3 +1,16 @@
+## 0.4.1
+
+- Fixed raster aspect-ratio calculations for width-only and height-only sizing.
+- Fixed cold thumbhash placeholder decoding by preserving the complete AC coefficient payload.
+- Replaced duplicate thumbhash runtime emitters with one canonical generated source.
+- Changed namespace precaching to decode images sequentially for safer memory use on low-end devices.
+- Restricted stale cleanup to files with dotdart's exact ownership header and added path, traversal, and symlink guards.
+- Added strict configuration, identifier, reserved-word, duplicate-input, and generated-symbol validation.
+- Added path-aware malformed Lottie errors and source-path context for asset parser failures.
+- Centralized generated asset and parameter contracts across widget constructors and namespace accessors.
+- Removed blanket generated-code lint suppression and added a real build_runner consumer fixture that analyzes and renders
+  generated SVG, Lottie, static raster, portrait, landscape, animated GIF, and thumbhash output.
+
 ## 0.4.0
 
 - **Added image pipeline:** `image:` config key in `pubspec.yaml` for raster

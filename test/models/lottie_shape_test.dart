@@ -46,17 +46,12 @@ void main() {
 
   group('LottieRect', () {
     test('when creating a rect with all fields, it should store them', () {
-      const rect = LottieRect(
-        positionX: 10,
-        positionY: 20,
-        width: 100,
-        height: 50,
-        cornerRadius: 8,
-        direction: 1,
-      );
+      const rect = LottieRect(positionX: 10, positionY: 20, width: 100, height: 50, cornerRadius: 8, direction: 1);
 
-      expect((rect.positionX, rect.positionY, rect.width, rect.height, rect.cornerRadius, rect.direction),
-          (10, 20, 100, 50, 8, 1));
+      expect(
+        (rect.positionX, rect.positionY, rect.width, rect.height, rect.cornerRadius, rect.direction),
+        (10, 20, 100, 50, 8, 1),
+      );
     });
 
     test('when direction is not provided, it should default to 1 (clockwise)', () {
@@ -70,7 +65,10 @@ void main() {
     test('when creating an ellipse with all fields, it should store them', () {
       const ellipse = LottieEllipse(positionX: 50, positionY: 50, width: 80, height: 60, direction: 1);
 
-      expect((ellipse.positionX, ellipse.positionY, ellipse.width, ellipse.height, ellipse.direction), (50, 50, 80, 60, 1));
+      expect(
+        (ellipse.positionX, ellipse.positionY, ellipse.width, ellipse.height, ellipse.direction),
+        (50, 50, 80, 60, 1),
+      );
     });
 
     test('when direction is not provided, it should default to 1 (clockwise)', () {
@@ -107,8 +105,19 @@ void main() {
         lineJoin: 3,
       );
 
-      expect((stroke.colorR, stroke.colorG, stroke.colorB, stroke.colorA, stroke.opacity, stroke.width, stroke.lineCap, stroke.lineJoin),
-          (0, 0, 1, 1, 100, 3, 1, 3));
+      expect(
+        (
+          stroke.colorR,
+          stroke.colorG,
+          stroke.colorB,
+          stroke.colorA,
+          stroke.opacity,
+          stroke.width,
+          stroke.lineCap,
+          stroke.lineJoin,
+        ),
+        (0, 0, 1, 1, 100, 3, 1, 3),
+      );
     });
 
     test('when lineCap and lineJoin are not provided, they should default to 1', () {
@@ -123,7 +132,16 @@ void main() {
       const transform = LottieGroupTransform();
 
       expect(
-        (transform.positionX, transform.positionY, transform.anchorX, transform.anchorY, transform.scaleX, transform.scaleY, transform.rotation, transform.opacity),
+        (
+          transform.positionX,
+          transform.positionY,
+          transform.anchorX,
+          transform.anchorY,
+          transform.scaleX,
+          transform.scaleY,
+          transform.rotation,
+          transform.opacity,
+        ),
         (0, 0, 0, 0, 100, 100, 0, 100),
       );
     });
@@ -140,8 +158,7 @@ void main() {
         opacity: 50,
       );
 
-      expect((transform.positionX, transform.positionY, transform.anchorX, transform.anchorY),
-          (50, 60, 10, 20));
+      expect((transform.positionX, transform.positionY, transform.anchorX, transform.anchorY), (50, 60, 10, 20));
     });
   });
 

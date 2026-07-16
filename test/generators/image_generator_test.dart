@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ImageGenerator', () {
-    final fixture = RasterImage(
+    const fixture = RasterImage(
       intrinsicWidth: 1024,
       intrinsicHeight: 768,
       format: RasterImageFormat.webp,
@@ -45,12 +45,11 @@ void main() {
       expect(source, contains('class _Cat extends StatelessWidget'));
     });
 
-    test('when generating source, it should embed intrinsic dimensions', () {
+    test('when generating source, it should omit unused intrinsic dimension constants', () {
       final generator = ImageGenerator(fixture, 'assets/three_d/cat.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains('static const int _intrinsicWidth = 1024'));
-      expect(source, contains('static const int _intrinsicHeight = 768'));
+      expect(source, isNot(contains('_intrinsicWidth')));
     });
 
     test('when generating source, it should embed the aspect ratio', () {
@@ -81,11 +80,11 @@ void main() {
       expect(source, contains("static const String _assetPath = 'assets/three_d/cat.webp'"));
     });
 
-    test('when generating source, it should embed the cache key', () {
+    test('when generating source, it should not expose a public cache key', () {
       final generator = ImageGenerator(fixture, 'assets/three_d/cat.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains("static const String cacheKey = 'assets/three_d/cat.webp'"));
+      expect(source, isNot(contains('CacheKey')));
     });
 
     test('when generating source, it should set gaplessPlayback to true', () {
@@ -106,8 +105,7 @@ void main() {
       final generator = ImageGenerator(fixture, 'assets/three_d/cat.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains('cacheWidth: (w * dpr).ceil()'));
-      expect(source, contains('cacheHeight: (h * dpr).ceil()'));
+      expect(source, allOf(contains('cacheWidth: (w * dpr).ceil()'), contains('cacheHeight: (h * dpr).ceil()')));
     });
 
     test('when generating source, it should wrap the image in a RepaintBoundary', () {
@@ -124,23 +122,27 @@ void main() {
       expect(source, contains('_dotdartImageFrameBuilder'));
     });
 
-    test('when generating source for an animated image, _isAnimated should be true', () {
-      final animatedFixture = fixture.copyWith(
-        isAnimated: true,
-        frameCount: 12,
-        durationMs: 600,
-      );
-      final generator = ImageGenerator(animatedFixture, 'assets/three_d/animated.gif');
+    test('when generating a landscape image with width, it should derive height by dividing by the aspect ratio', () {
+      final generator = ImageGenerator(fixture, 'assets/three_d/landscape.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains('static const bool _isAnimated = true'));
+      expect(source, contains('final h = height ?? w / aspect;'));
     });
 
-    test('when generating source for a static image, _isAnimated should be false', () {
-      final generator = ImageGenerator(fixture, 'assets/three_d/static.png');
+    test('when generating a portrait image with height, it should derive width by multiplying by the aspect ratio', () {
+      const portrait = RasterImage(
+        intrinsicWidth: 768,
+        intrinsicHeight: 1024,
+        format: RasterImageFormat.webp,
+        isAnimated: false,
+        aspectRatio: 768 / 1024,
+        dominantColor: 0xFF8A6D4B,
+        thumbhash: 'portraitHash',
+      );
+      final generator = ImageGenerator(portrait, 'assets/three_d/portrait.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains('static const bool _isAnimated = false'));
+      expect(source, contains('height! * aspect'));
     });
 
     test('when generating source, it should not import the image package or dotdart', () {
@@ -150,30 +152,4 @@ void main() {
       expect(source, isNot(contains("import 'package:image")));
     });
   });
-}
-
-extension on RasterImage {
-  RasterImage copyWith({
-    int? intrinsicWidth,
-    int? intrinsicHeight,
-    RasterImageFormat? format,
-    bool? isAnimated,
-    int? frameCount,
-    int? durationMs,
-    double? aspectRatio,
-    int? dominantColor,
-    String? thumbhash,
-  }) {
-    return RasterImage(
-      intrinsicWidth: intrinsicWidth ?? this.intrinsicWidth,
-      intrinsicHeight: intrinsicHeight ?? this.intrinsicHeight,
-      format: format ?? this.format,
-      isAnimated: isAnimated ?? this.isAnimated,
-      frameCount: frameCount ?? this.frameCount,
-      durationMs: durationMs ?? this.durationMs,
-      aspectRatio: aspectRatio ?? this.aspectRatio,
-      dominantColor: dominantColor ?? this.dominantColor,
-      thumbhash: thumbhash ?? this.thumbhash,
-    );
-  }
 }
