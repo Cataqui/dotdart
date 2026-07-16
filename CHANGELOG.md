@@ -1,3 +1,21 @@
+## 0.2.0
+
+- Add **SVG pipeline**: `<path>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`,
+  `<polyline>`, `<polygon>` elements with groups and transforms.
+- Presentation attributes: `fill`, `fill-opacity`, `fill-rule`, `stroke`,
+  `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `opacity`.
+- Color theming: distinct fill/stroke colors become `color1`, `color2`, …
+  props (deduplicated), mirroring the Lottie color API.
+- Precompiled geometry: all SVG paths are converted to `static final Path`
+  at build time — no runtime XML parsing, no picture cache allocation.
+- Generated widgets are `StatelessWidget` (no animation machinery).
+- Sizing and layout mirror the Lottie widget pattern: aspect from viewBox,
+  `LayoutBuilder`/`OverflowBox` for fluid or explicit sizing.
+- `viewBox` support, including `min-x`/`min-y` canvas offset.
+- `transform` attribute: `translate()`, `scale()`, `rotate()`.
+- Style inheritance: attributes on `<g>` propagate to children.
+- Built-in minimal XML parser (no external `xml` dependency needed).
+
 ## 0.1.0
 
 - Initial release.

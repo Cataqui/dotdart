@@ -13,14 +13,23 @@ lib/
     ├── builders/
     │   └── dotdart_builder.dart  # build_runner Builder (PostProcessBuilder pattern)
     ├── generators/
-    │   └── lottie_generator.dart # Lottie model → Dart source string
+    │   ├── lottie_generator.dart # Lottie model → Dart source string
+    │   └── svg_generator.dart    # SvgDocument → Dart source string
     ├── models/
     │   ├── lottie_animation.dart  # Top-level Lottie model
     │   ├── lottie_layer.dart     # Layer model
     │   ├── lottie_shape.dart     # Shape model (sealed class)
-    │   └── lottie_keyframe.dart  # Keyframe model
+    │   ├── lottie_keyframe.dart  # Keyframe model
+    │   ├── svg_document.dart     # SVG document model (viewBox, root elements)
+    │   ├── svg_element.dart      # SVG element model (path/rect/circle/group, etc.)
+    │   └── svg_style.dart        # Resolved SVG presentation attributes
     └── parsers/
-        └── lottie_parser.dart    # JSON → LottieAnimation
+        ├── lottie_parser.dart    # JSON → LottieAnimation
+        └── svg/
+            ├── svg_parser.dart       # XML → SvgDocument (orchestrates the below)
+            ├── svg_mini_xml.dart     # Minimal XML parser (no external dependency)
+            ├── svg_path_data.dart    # SVG path d attribute parser
+            └── svg_transform.dart    # SVG transform attribute parser
 ```
 
 ## Key Design Decisions
@@ -33,7 +42,7 @@ lib/
 
 ## Adding a New Asset Type
 
-1. Create a parser in `lib/src/parsers/` (e.g. `svg_parser.dart`)
+1. Create a parser in `lib/src/parsers/<type>/` (e.g. `svg/svg_parser.dart`)
 2. Create a generator in `lib/src/generators/` (e.g. `svg_generator.dart`)
 3. Add the asset type key to the config parser in `dotdart_builder.dart`
 4. Route parsed models to the appropriate generator in the builder's `build` method

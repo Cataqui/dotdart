@@ -7,7 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../generators/lottie_generator.dart';
+import '../generators/svg_generator.dart';
 import '../parsers/lottie_parser.dart';
+import '../parsers/svg/svg_parser.dart';
 
 /// A `build_runner` [Builder] that converts visual assets (Lottie, SVG, etc.)
 /// into pure-Dart `CustomPainter` widget code.
@@ -95,6 +97,26 @@ class _DotdartBuilder implements Builder {
       }
     }
 
+    for (final input in config.svgInputs) {
+      final glob = input.endsWith('.svg') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.svg';
+      await for (final assetId in buildStep.findAssets(Glob(glob))) {
+        final content = await buildStep.readAsString(assetId);
+        if (!_isSvgXml(content)) continue;
+
+        final result = SvgParser.parse(content);
+        for (final warning in result.warnings) {
+          log.warning('$assetId: $warning');
+        }
+
+        final generator = SvgGenerator(result.document, assetId.path);
+        final output = generator.generate();
+
+        final fileName = '${p.basenameWithoutExtension(assetId.path)}.g.dart';
+        final outputPath = p.posix.join(config.outputDir, fileName);
+        outputs.add(_ManifestOutput(path: outputPath, contents: output));
+      }
+    }
+
     await _writeManifest(buildStep, packageRoot, outputs);
   }
 
@@ -134,7 +156,20 @@ class _DotdartBuilder implements Builder {
       }
     }
 
-    return _DotdartConfig(outputDir: outputDir, lottieInputs: lottieInputs);
+    final svgRaw = dotdart['svg'];
+    final svgInputs = <String>[];
+    if (svgRaw is YamlList) {
+      for (final entry in svgRaw) {
+        if (entry is! String) {
+          throw const FormatException('dotdart.svg entries must be relative file or directory paths.');
+        }
+
+        final input = _normalizePackagePath(entry, fieldName: 'dotdart.svg');
+        if (input.isNotEmpty) svgInputs.add(input);
+      }
+    }
+
+    return _DotdartConfig(outputDir: outputDir, lottieInputs: lottieInputs, svgInputs: svgInputs);
   }
 
   bool _isLottieJson(String content) {
@@ -147,6 +182,18 @@ class _DotdartBuilder implements Builder {
           json.containsKey('w') &&
           json.containsKey('h') &&
           json.containsKey('layers');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isSvgXml(String content) {
+    // Quick content-based check — does this look like an SVG XML file?
+    try {
+      final trimmed = content.trimLeft();
+      if (!trimmed.startsWith('<')) return false;
+      // Check for <svg opening tag (with or without namespace/attributes)
+      return RegExp(r'<\s*svg[\s>]', caseSensitive: false).hasMatch(trimmed);
     } catch (_) {
       return false;
     }
@@ -205,9 +252,10 @@ class _DotdartPostProcessBuilder extends PostProcessBuilder {
 }
 
 class _DotdartConfig {
-  const _DotdartConfig({required this.outputDir, required this.lottieInputs});
+  const _DotdartConfig({required this.outputDir, required this.lottieInputs, required this.svgInputs});
   final String outputDir;
   final List<String> lottieInputs;
+  final List<String> svgInputs;
 }
 
 class _ManifestOutput {

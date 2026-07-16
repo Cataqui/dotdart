@@ -4,8 +4,7 @@ Dart widget code.
 `dotdart` is for Flutter apps that want asset output as normal Dart source
 instead of runtime asset interpreters. It reads supported asset formats during
 `build_runner`, generates Flutter widget code, and leaves your app with only
-Flutter SDK runtime code. Lottie is the first supported format; SVG and other
-asset types are planned to follow the same asset-to-Dart pipeline.
+Flutter SDK runtime code. Lottie and SVG are the currently supported formats.
 
 ## Why dotdart?
 
@@ -29,11 +28,12 @@ Add a `dotdart:` section to your app package's `pubspec.yaml`.
 ```yaml
 dotdart:
   output: lib/gen/
-  lottie: # first supported asset type
+  lottie:
     - assets/lottie/
     - assets/onboarding/swipe_up.json
-  # svg:                       # planned
-  #   - assets/icons/
+  svg:
+    - assets/icons/
+    - assets/logos/brand.svg
 ```
 
 Then run code generation.
@@ -48,7 +48,7 @@ In this monorepo, use the workspace script instead:
 melos gen:all
 ```
 
-## Use the generated widget
+## Use the generated Lottie widget
 
 For the currently supported Lottie pipeline, if
 `assets/lottie/swipe_up_onboarding.json` is configured, dotdart generates
@@ -95,16 +95,44 @@ const SwipeUpOnboarding(
 )
 ```
 
+## Use the generated SVG widget
+
+If `assets/icons/cross.svg` is configured, dotdart generates
+`lib/gen/cross.g.dart` with a widget named `Cross`.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:my_app/gen/cross.g.dart';
+
+class MyCloseButton extends StatelessWidget {
+  const MyCloseButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Cross(
+      width: 24,
+      color1: Color(0xFFFF0000),
+    );
+  }
+}
+```
+
+Generated SVG widgets are `StatelessWidget` + `CustomPainter` — no runtime
+XML parsing, no picture cache, no `flutter_svg` dependency. All geometry is
+precompiled to `static final Path` fields. Two reusable `Paint` objects are
+shared across all draw operations.
+
 ## Configuration Reference
 
 ```yaml
 dotdart:
   output: lib/gen/ # output directory, defaults to lib/gen/
-  lottie: # Lottie JSON files, currently supported
+  lottie: # Lottie JSON files
     - assets/lottie/ # folder: scans JSON files directly inside it
     - assets/intro.json # file: generates one widget
-  # svg:                        # planned asset type
-  #   - assets/icons/
+  svg: # SVG files
+    - assets/icons/ # folder: scans .svg files directly inside it
+    - assets/logo.svg # file: generates one widget
 ```
 
 Each asset type gets its own key under `dotdart:`. All configured paths must be
@@ -116,8 +144,8 @@ rejected so generated files stay inside the package.
 `dotdart` is designed around independent asset pipelines. Each supported format
 has its own parser, generator, and configuration key:
 
-- `lottie:` is supported today.
-- `svg:` is planned next.
+- `lottie:` is supported.
+- `svg:` is supported.
 - More visual asset formats can be added without changing the generated-code
   contract.
 
@@ -138,7 +166,41 @@ The first release intentionally supports a focused, production-safe subset:
 Unsupported Lottie shape or layer types are skipped with build warnings when
 safe. A malformed Lottie file fails the build with an actionable parser error.
 
-## Not Yet Supported
+## Supported SVG Features
+
+- **Elements:** `<path>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`,
+  `<polyline>`, `<polygon>`, `<g>` (groups).
+- **Path commands:** `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`, `S`/`s`,
+  `Q`/`q`, `T`/`t`, `Z`/`z` — all resolved to absolute coordinates
+  at build time.
+- **Presentation attributes:** `fill`, `fill-opacity`, `fill-rule`, `stroke`,
+  `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-opacity`,
+  `opacity`, `transform`.
+- **Colors:** `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, named colors,
+  `none`.
+- **`viewBox`** with min-x/min-y offset.
+- **Style inheritance:** attributes on `<g>` propagate to children.
+- **`clip-rule`:** silently ignored (no-op without `<clipPath>`).
+- **Fail-fast on:** gradients, `use`/`symbol`/`defs` references, text, images,
+  filters, masks, clip-paths, `<style>` CSS blocks, `matrix()`/`skewX()`/`skewY()`
+  transforms.
+- **Skip-with-warning:** unknown elements and negligible cosmetic attributes
+  (e.g. `stroke-dasharray`).
+
+## Not Yet Supported (SVG)
+
+- Animated SVG (SMIL/CSS animations)
+- Gradients (`<linearGradient>`, `<radialGradient>`)
+- `<use>`, `<symbol>`, `<defs>` references
+- `<text>`, `<tspan>`, `<image>`
+- Filters, masks, `<clipPath>`, `<pattern>`
+- CSS `<style>` blocks
+- `matrix()`, `skewX()`, `skewY()` transforms
+- Arc path commands (`A`/`a`)
+- `stroke-dasharray`, `stroke-dashoffset`
+- `currentColor` as a separate theme slot (currently treated as black)
+
+## Not Yet Supported (Lottie)
 
 - Gradients
 - Masks and mattes
