@@ -17,6 +17,9 @@ enum DotdartAssetType {
 
   /// An animated Lottie widget (uses `_DotdartLottieAnimationState` mixin).
   lottie,
+
+  /// A raster image widget (uses thumbhash decoder + frameBuilder).
+  raster,
 }
 
 /// A single asset ready to be placed into a namespace file.
@@ -27,6 +30,7 @@ class AssembledAsset {
     required this.params,
     required this.widgetSource,
     required this.assetType,
+    this.cacheKey,
   });
 
   /// lowerCamelCase accessor name (e.g. `cross`, `exclamationCircle`).
@@ -44,6 +48,9 @@ class AssembledAsset {
 
   /// The asset type, used to determine which shared code to emit.
   final DotdartAssetType assetType;
+
+  /// The asset cache key (raster assets only). Null for non-raster types.
+  final String? cacheKey;
 }
 
 /// Assembles a complete `.g.dart` file for one namespace.
@@ -114,10 +121,15 @@ class NamespaceAssembler {
     if (types.contains(DotdartAssetType.lottie)) {
       b.write(SharedEmitter.lottieAnimationStateMixin());
     }
+    if (types.contains(DotdartAssetType.raster)) {
+      b.write(SharedEmitter.thumbhashCode());
+    }
   }
 
   void _writeNamespaceClass(StringBuffer b) {
     final className = _className;
+    final hasRaster = assets.any((a) => a.assetType == DotdartAssetType.raster);
+
     b.writeln('/// Namespace for dotdart-generated widgets from `$folderSegment/`.');
     b.writeln('///');
     b.writeln('/// Call a method named after each asset to render it:');
@@ -135,6 +147,23 @@ class NamespaceAssembler {
       _writeAccessorMethod(b, asset);
     }
 
+    if (hasRaster) {
+      b.writeln('  /// Precaches all images in this namespace.');
+      b.writeln('  ///');
+      b.writeln('  /// Call during app bootstrap (off the critical path) to warm the image');
+      b.writeln('  /// cache so the first render never stalls on a cold decode.');
+      b.writeln('  static Future<void> precache(BuildContext context) async {');
+      b.writeln('    await Future.wait([');
+      for (final asset in assets) {
+        if (asset.cacheKey != null) {
+          b.writeln("      precacheImage(AssetImage('${asset.cacheKey}'), context),");
+        }
+      }
+      b.writeln('    ]);');
+      b.writeln('  }');
+      b.writeln();
+    }
+
     b.writeln('}');
     b.writeln();
   }
@@ -144,6 +173,7 @@ class NamespaceAssembler {
     final fileExt = switch (asset.assetType) {
       DotdartAssetType.svg => 'svg',
       DotdartAssetType.lottie => 'json',
+      DotdartAssetType.raster => 'image',
     };
     b.writeln('  /// Builds the `$docPrefix` widget from `${asset.accessorName}.$fileExt`.');
     b.writeln('  static Widget ${asset.accessorName}({');

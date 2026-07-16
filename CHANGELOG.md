@@ -1,3 +1,29 @@
+## 0.4.0
+
+- **Added image pipeline:** `image:` config key in `pubspec.yaml` for raster
+  assets (WebP, PNG, JPEG, GIF). Generates optimized `$Namespace.assetName()`
+  accessors returning `Image.asset` with decode-time downsampling, embedded
+  thumbhash placeholders, dominant color, and `RepaintBoundary` wrapping.
+- **Added build-time metadata embedding:** intrinsic dimensions, format,
+  animated flag, dominant color, and thumbhash are probed at build time and
+  emitted as `static const` fields in the generated widget — zero runtime
+  dimension probing.
+- **Added thumbhash instant placeholders:** every generated raster widget
+  renders a blurry thumbhash placeholder in frame 1 (before the real image
+  decodes) via a shared `_dotdartImageFrameBuilder`. No flash of empty.
+- **Added `_dotdartImageFrameBuilder`** shared function + `_DotdartThumbhashDecoder`
+  + `_DotdartThumbhashPainter` emitted once per namespace file.
+- **Added `precache` method and `cacheKey` constants** to raster namespaces
+  for per-screen image memory management and coordinated cache warming.
+- **Added `image` build-time dependency** (`^4.8.0`) for pixel decoding,
+  dominant color extraction, and thumbhash generation. Never imported by
+  generated code.
+- **Added `DotdartAssetType.raster`** to the namespace enum.
+- **Documentation:** README updated with image support section, quick-start
+  example, and reframed purpose. AGENTS.md architecture tree updated.
+- **Tests:** 22 new tests across models, parsers, thumbhash encoder,
+  generator, and widget levels.
+
 ## 0.3.0
 
 - **BREAKING:** Generated output is now grouped by source folder into namespace

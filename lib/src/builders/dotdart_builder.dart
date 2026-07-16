@@ -11,11 +11,13 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../generators/accessor_param.dart';
+import '../generators/image_generator.dart';
 import '../generators/lottie_generator.dart';
 import '../generators/namespace_assembler.dart';
 import '../generators/naming.dart';
 import '../generators/svg_generator.dart';
 import '../parsers/lottie_parser.dart';
+import '../parsers/raster/raster_parser.dart';
 import '../parsers/svg/svg_parser.dart';
 
 /// A `build_runner` [Builder] that converts visual assets (Lottie, SVG, etc.)
@@ -132,6 +134,26 @@ class _DotdartBuilder implements Builder {
       }
     }
 
+    for (final input in config.imageInputs) {
+      final globPattern = _imageGlobPattern(input);
+      await for (final assetId in buildStep.findAssets(Glob(globPattern))) {
+        final bytes = await buildStep.readAsBytes(assetId);
+        if (!_isRasterImage(bytes)) continue;
+
+        final result = RasterParser.parse(bytes);
+        final generator = ImageGenerator(result, assetId.path);
+        rawAssets.add(_RawAsset(
+          assetId: assetId,
+          generator: null,
+          widgetSource: generator.generateWidgetClass(),
+          params: generator.params,
+          widgetClassName: generator.widgetClassName,
+          assetType: DotdartAssetType.raster,
+          cacheKey: assetId.path,
+        ));
+      }
+    }
+
     // Group by namespace key derived from parent folder.
     final namespaceGroups = <String, List<_RawAsset>>{};
     for (final raw in rawAssets) {
@@ -168,6 +190,7 @@ class _DotdartBuilder implements Builder {
                 params: raw.params,
                 widgetSource: raw.widgetSource,
                 assetType: raw.assetType,
+                cacheKey: raw.cacheKey,
               ))
           .toList();
 
@@ -272,7 +295,25 @@ class _DotdartBuilder implements Builder {
       }
     }
 
-    return _DotdartConfig(outputDir: outputDir, lottieInputs: lottieInputs, svgInputs: svgInputs);
+    final imageRaw = dotdart['image'];
+    final imageInputs = <String>[];
+    if (imageRaw is YamlList) {
+      for (final entry in imageRaw) {
+        if (entry is! String) {
+          throw const FormatException('dotdart.image entries must be relative file or directory paths.');
+        }
+
+        final input = _normalizePackagePath(entry, fieldName: 'dotdart.image');
+        if (input.isNotEmpty) imageInputs.add(input);
+      }
+    }
+
+    return _DotdartConfig(
+      outputDir: outputDir,
+      lottieInputs: lottieInputs,
+      svgInputs: svgInputs,
+      imageInputs: imageInputs,
+    );
   }
 
   bool _isLottieJson(String content) {
@@ -291,15 +332,75 @@ class _DotdartBuilder implements Builder {
   }
 
   bool _isSvgXml(String content) {
-    // Quick content-based check — does this look like an SVG XML file?
     try {
       final trimmed = content.trimLeft();
       if (!trimmed.startsWith('<')) return false;
-      // Check for <svg opening tag (with or without namespace/attributes)
       return RegExp(r'<\s*svg[\s>]', caseSensitive: false).hasMatch(trimmed);
     } catch (_) {
       return false;
     }
+  }
+
+  /// Detects raster image formats from magic bytes.
+  ///
+  /// Supports WebP, PNG, JPEG, and GIF. Returns false for AVIF, HEIC, and
+  /// other unsupported formats.
+  bool _isRasterImage(List<int> bytes) {
+    if (bytes.length < 4) return false;
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return true;
+    }
+
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return true;
+    }
+
+    // GIF: 47 49 46 38
+    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38) {
+      return true;
+    }
+
+    // WebP: 52 49 46 46 .... 57 45 42 50
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return true;
+    }
+
+    // AVIF/HEIC — not supported by Flutter on low-end devices.
+    if (bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
+      return false; // ftyp box — AVIF or HEIC
+    }
+
+    return false;
+  }
+
+  String _imageGlobPattern(String input) {
+    if (input.endsWith('.webp') ||
+        input.endsWith('.png') ||
+        input.endsWith('.jpg') ||
+        input.endsWith('.jpeg') ||
+        input.endsWith('.gif')) {
+      return input;
+    }
+    return '${input.replaceFirst(RegExp(r'/$'), '')}/{*.webp,*.png,*.jpg,*.jpeg,*.gif}';
   }
 
   String _normalizePackagePath(String path, {required String fieldName}) {
@@ -373,10 +474,16 @@ class _DotdartPostProcessBuilder extends PostProcessBuilder {
 }
 
 class _DotdartConfig {
-  const _DotdartConfig({required this.outputDir, required this.lottieInputs, required this.svgInputs});
+  const _DotdartConfig({
+    required this.outputDir,
+    required this.lottieInputs,
+    required this.svgInputs,
+    required this.imageInputs,
+  });
   final String outputDir;
   final List<String> lottieInputs;
   final List<String> svgInputs;
+  final List<String> imageInputs;
 }
 
 class _ManifestOutput {
@@ -403,6 +510,7 @@ class _RawAsset {
     required this.params,
     required this.widgetClassName,
     required this.assetType,
+    this.cacheKey,
   });
 
   final AssetId assetId;
@@ -411,6 +519,7 @@ class _RawAsset {
   final List<AccessorParam> params;
   final String widgetClassName;
   final DotdartAssetType assetType;
+  final String? cacheKey;
 
   String get accessorName => Naming.accessorName(assetId.path);
 }

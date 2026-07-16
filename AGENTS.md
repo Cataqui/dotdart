@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`dotdart` is a build-time code generator that converts visual assets (Lottie, SVG, and more) into pure-Dart `CustomPainter` widget code. No runtime dependency — the generated code is self-contained Flutter widgets.
+`dotdart` is a build-time code generator that converts visual assets (Lottie, SVG, and raster images) into optimized, self-contained Flutter Dart code — either `CustomPainter` widgets or `Image.asset` accessors with maximum out-of-the-box optimization. No runtime dependency beyond Flutter SDK.
 
 ## Architecture
 
@@ -14,12 +14,15 @@ lib/
     │   └── dotdart_builder.dart  # build_runner Builder (PostProcessBuilder pattern)
     ├── generators/
     │   ├── accessor_param.dart    # AccessorParam model for constructor params
+    │   ├── image_generator.dart   # RasterImage model → optimized Image.asset widget class
     │   ├── naming.dart            # Naming helpers (widgetClassName, accessorName, namespaceNameFromFolder)
     │   ├── namespace_assembler.dart # Combines widget fragments into per-folder namespace files
-    │   ├── shared_emit.dart       # Shared mixin/helper source emission (SVG sizing, Lottie lifecycle, opacity)
+    │   ├── shared_emit.dart       # Shared mixin/helper source emission (SVG sizing, Lottie lifecycle, opacity, thumbhash)
     │   ├── lottie_generator.dart  # Lottie model → widget-class fragment
     │   └── svg_generator.dart     # SvgDocument → widget-class fragment
     ├── models/
+    │   ├── raster_image.dart      # Raster image metadata (dims, format, thumbhash, dominant color)
+    │   ├── raster_image_enums.dart # RasterImageFormat enum (part)
     │   ├── lottie_animation.dart  # Top-level Lottie model
     │   ├── lottie_layer.dart     # Layer model
     │   ├── lottie_shape.dart     # Shape model (sealed class)
@@ -29,6 +32,9 @@ lib/
     │   └── svg_style.dart        # Resolved SVG presentation attributes
     └── parsers/
         ├── lottie_parser.dart    # JSON → LottieAnimation
+        ├── raster/
+        │   ├── raster_parser.dart # Image bytes (via `image` pkg) → RasterImage
+        │   └── thumbhash.dart     # Thumbhash encoder + decoder source emitter
         └── svg/
             ├── svg_parser.dart       # XML → SvgDocument (orchestrates the below)
             ├── svg_mini_xml.dart     # Minimal XML parser (no external dependency)
@@ -50,17 +56,20 @@ lib/
 
 ## Adding a New Asset Type
 
-1. Create a parser in `lib/src/parsers/<type>/` (e.g. `svg/svg_parser.dart`)
-2. Create a generator in `lib/src/generators/` (e.g. `svg_generator.dart`).
+1. Create a parser in `lib/src/parsers/<type>/` (e.g. `svg/svg_parser.dart`, `raster/raster_parser.dart`)
+2. Create a generator in `lib/src/generators/` (e.g. `svg_generator.dart`, `image_generator.dart`).
    The generator must expose:
    - `generateWidgetClass()` → returns widget + painter source (no header/imports, unformatted)
    - `params` getter → returns `List<AccessorParam>` describing constructor parameters
    - `widgetClassName` → private PascalCase class name (prefixed with `_`) from the source path
 3. Add the asset type key to the config parser in `dotdart_builder.dart`
 4. Add the asset type to the `DotdartAssetType` enum in `namespace_assembler.dart`
-5. If shared mixins are needed, add emission logic to `shared_emit.dart`
+5. If shared mixins/helpers are needed, add emission logic to `shared_emit.dart`
 6. Route parsed models to the appropriate generator in the builder's `build` method.
    The builder automatically groups assets by parent folder and passes them to `NamespaceAssembler`.
+7. **Note:** raster image accessors return `Image` (not `Widget`), because they produce
+   `Image.asset` rather than `CustomPaint`. The namespace accessor uses `static Image`
+   while SVG/Lottie use `static Widget`.
 
 ## Testing
 

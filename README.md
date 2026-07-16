@@ -1,19 +1,28 @@
-Build-time Flutter asset compiler that turns visual assets into dependency-free
-Dart widget code.
+Build-time Flutter asset compiler that makes visual assets accessible in Dart
+with maximum out-of-the-box optimization — `$Icons.cross()`, `$Lottie.swipeUp()`,
+`$Images.cat()`.
 
-`dotdart` is for Flutter apps that want asset output as normal Dart source
-instead of runtime asset interpreters. It reads supported asset formats during
-`build_runner`, generates Flutter widget code, and leaves your app with only
-Flutter SDK runtime code. Lottie and SVG are the currently supported formats.
+`dotdart` reads supported asset formats during `build_runner`, generates
+optimized Flutter widget code, and leaves your app with only Flutter SDK
+runtime code. Lottie and SVG compile to dependency-free `CustomPainter`
+widgets. Raster images compile to `Image.asset` accessors with built-in
+downsampling, instant thumbhash placeholders, and coordinated precaching —
+optimizations that runtime packages cannot provide because they rely on
+build-time metadata that only a codegen tool can know.
 
 ## Why dotdart?
 
-- Generates self-contained Dart widget code for supported asset formats.
-- Avoids shipping format-specific runtime interpreters in the app bundle.
-- Keeps animations lifecycle-aware and pauses work when the app is not resumed.
-- Respects reduced-motion settings by rendering a static frame.
-- Exposes generated color parameters so apps can theme assets without editing
-  the source animation.
+- **SVG & Lottie:** Generates self-contained `CustomPainter` widgets — no
+  `flutter_svg` or Lottie runtime dependency in your app.
+- **Raster images:** Generates `Image.asset` accessors with build-time
+  metadata, decode-time downsampling, and instant thumbhash placeholders —
+  strictly more optimal than any runtime-only image package.
+- **Zero runtime dependency:** Generated code imports only `dart:math`,
+  `dart:convert`, and Flutter SDK. No `dotdart` import in generated files.
+- **Lifecycle-aware animations:** Lottie widgets pause when the app is not
+  resumed and respect reduced-motion settings.
+- **Themeable colors:** Generated SVG and Lottie widgets expose distinct colors
+  as named parameters so apps can theme assets without editing the source file.
 
 ## Installation
 
@@ -34,6 +43,9 @@ dotdart:
   svg:
     - assets/icons/
     - assets/logos/brand.svg
+  image:
+    - assets/three_d/
+    - assets/photos/hero.webp
 ```
 
 Then run code generation.
@@ -112,6 +124,44 @@ playing even if the device is configured to disable animations.
 $Lottie.swipeUpOnboarding(width: 160, respectDisableAnimations: false);
 ```
 
+### Image example
+
+Assets in `assets/three_d/` are accessed via `$ThreeD` from `lib/gen/three_d.g.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:my_app/gen/three_d.g.dart';
+
+class EmptyState extends StatelessWidget {
+  const EmptyState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return $ThreeD.emptyCitySaoPaulo(width: 200);
+  }
+}
+```
+
+Each generated image accessor embeds intrinsic dimensions, format, dominant
+color, and a thumbhash placeholder at build time. The generated widget decodes
+the image at `displaySize × devicePixelRatio` for minimal memory, sets
+`gaplessPlayback: true`, and wraps in `RepaintBoundary`. All of these
+optimizations are baked in — the caller just supplies `width` and `height`.
+
+To warm the image cache at app start:
+
+```dart
+// In your bootstrap:
+await $ThreeD.precache(context);
+```
+
+To evict a specific image from the cache (e.g. when navigating away from a
+screen):
+
+```dart
+PaintingBinding.instance.imageCache.evict($ThreeD.emptyCitySaoPauloCacheKey);
+```
+
 Generated SVG widgets are `StatelessWidget` + `CustomPainter` — no runtime
 XML parsing, no picture cache, no `flutter_svg` dependency. All geometry is
 precompiled to `static final Path` fields. Two reusable `Paint` objects are
@@ -121,11 +171,12 @@ shared across all draw operations.
 
 Each asset's accessor name is derived from the filename in lowerCamelCase:
 
-| Source file                   | Accessor method         |
-| ----------------------------- | ----------------------- |
-| `assets/icons/cross.svg`      | `$Icons.cross(...)`     |
-| `assets/icons/arrow_left.svg` | `$Icons.arrowLeft(...)` |
-| `assets/lottie/swipe_up.json` | `$Lottie.swipeUp(...)`  |
+| Source file                       | Accessor method               |
+| --------------------------------- | ----------------------------- |
+| `assets/icons/cross.svg`          | `$Icons.cross(...)`           |
+| `assets/icons/arrow_left.svg`     | `$Icons.arrowLeft(...)`       |
+| `assets/lottie/swipe_up.json`     | `$Lottie.swipeUp(...)`        |
+| `assets/three_d/empty_city.webp`  | `$ThreeD.emptyCity(...)`      |
 
 ## Configuration Reference
 
@@ -138,6 +189,9 @@ dotdart:
   svg: # SVG files
     - assets/icons/ # folder: scans .svg files directly inside it
     - assets/logo.svg # file: generates one widget
+  image: # Raster image files (WebP, PNG, JPEG, GIF)
+    - assets/three_d/ # folder: scans .webp/.png/.jpg/.jpeg/.gif files directly inside
+    - assets/hero.webp # file: generates one widget
 ```
 
 Each asset type gets its own key under `dotdart:`. All configured paths must be
@@ -149,10 +203,11 @@ rejected so generated files stay inside the package.
 `dotdart` is designed around independent asset pipelines. Each supported format
 has its own parser, generator, and configuration key:
 
-- `lottie:` is supported.
-- `svg:` is supported.
-- More visual asset formats can be added without changing the generated-code
-  contract.
+- `lottie:` Lottie JSON animations → `CustomPainter` widgets.
+- `svg:` SVG vector images → `CustomPainter` widgets.
+- `image:` Raster images (WebP, PNG, JPEG, GIF) → optimized `Image.asset` accessors
+  with build-time metadata, decode-time downsampling, and embedded thumbhash
+  placeholders.
 
 ## Supported Lottie Features
 
