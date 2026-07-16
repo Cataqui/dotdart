@@ -3,8 +3,6 @@
 // ignore_for_file: cascade_invocations
 
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -25,6 +23,7 @@ import 'dotdart_post_process_builder.dart';
 import 'generated_namespace_validator.dart';
 import 'generated_output_ownership.dart';
 import 'manifest_output.dart';
+import 'package_root_resolver.dart';
 
 /// A `build_runner` [Builder] that converts visual assets (Lottie, SVG, etc.)
 /// into pure-Dart `CustomPainter` widget code.
@@ -291,11 +290,7 @@ class _DotdartBuilder implements Builder {
   }
 
   Future<String> _packageRoot(BuildStep buildStep) async {
-    final packageConfig = await buildStep.packageConfig;
-    final pkg = packageConfig[buildStep.inputId.package];
-    if (pkg != null && pkg.root.scheme == 'file') return pkg.root.toFilePath();
-    // Fallback: use the current working directory
-    return Directory.current.path;
+    return PackageRootResolver.resolve(buildStep);
   }
 
   bool _isLottieJson(String content) {
