@@ -2,11 +2,12 @@
 // makes the code harder to read. This is a known false positive.
 // ignore_for_file: cascade_invocations, prefer_adjacent_string_concatenation
 
-import 'package:dart_style/dart_style.dart';
-
 import '../models/svg_document.dart';
 import '../models/svg_element.dart';
 import '../models/svg_style.dart';
+
+import 'accessor_param.dart';
+import 'naming.dart';
 
 /// Generates a self-contained Dart `StatelessWidget` + `CustomPainter` from
 /// a parsed [SvgDocument].
@@ -16,25 +17,38 @@ class SvgGenerator {
   final SvgDocument document;
   final String sourcePath;
 
-  String generate() {
+  /// Returns the constructor parameters of the generated SVG widget.
+  ///
+  /// Used by `NamespaceAssembler` to emit matching accessor methods.
+  List<AccessorParam> get params {
+    final colors = _extractColors();
+    final result = <AccessorParam>[
+      const AccessorParam(name: 'key', type: 'Key?'),
+      const AccessorParam(name: 'width', type: 'double?'),
+      const AccessorParam(name: 'height', type: 'double?'),
+    ];
+    for (final color in colors) {
+      result.add(AccessorParam(name: 'color${color.index}', type: 'Color?'));
+    }
+    return result;
+  }
+
+  /// Generates the widget class (and painter) source fragment (no header/imports).
+  ///
+  /// The returned string is not Dart-formatted — the caller (`NamespaceAssembler`)
+  /// formats the combined file.
+  String generateWidgetClass() {
     final b = StringBuffer();
     final colors = _extractColors();
-
-    _writeHeader(b);
-    _writeImports(b);
     _writeWidgetClass(b, colors);
     _writePainterClass(b, colors);
-
-    return DartFormatter(languageVersion: DartFormatter.latestLanguageVersion).format(b.toString());
+    return b.toString();
   }
 
-  String get widgetClassName {
-    final name = sourcePath.split('/').last.split('.').first;
-    return name
-        .split(RegExp(r'[_\s-]+'))
-        .map((s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '')
-        .join();
-  }
+  String get widgetClassName => '_${Naming.widgetClassName(sourcePath)}';
+
+  /// The PascalCase name without the private `_` prefix — used for inner classes.
+  String get _baseName => Naming.widgetClassName(sourcePath);
 
   // ── Color extraction ──
 
@@ -65,28 +79,6 @@ class SvgGenerator {
     return result;
   }
 
-  // ── Header ──
-
-  void _writeHeader(StringBuffer b) {
-    b.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-    b.writeln('// *****************************************************');
-    b.writeln('//  dotdart');
-    b.writeln('// *****************************************************');
-    b.writeln();
-    b.writeln('// coverage:ignore-file');
-    b.writeln('// ignore_for_file: type=lint, unused_import, unused_element, unused_element_parameter');
-    b.writeln();
-  }
-
-  // ── Imports ──
-
-  void _writeImports(StringBuffer b) {
-    b.writeln("import 'dart:math' as math;");
-    b.writeln("import 'package:flutter/material.dart';");
-    b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
-    b.writeln();
-  }
-
   // ── Widget class ──
 
   void _writeWidgetClass(StringBuffer b, List<_ColorEntry> colors) {
@@ -99,7 +91,7 @@ class SvgGenerator {
       '${document.viewBox.width} ${document.viewBox.height}.',
     );
     b.writeln('/// No flutter_svg runtime dependency — drawn entirely via [CustomPainter].');
-    b.writeln('class $name extends StatelessWidget {');
+    b.writeln('class $name extends StatelessWidget with _DotdartSvgSizing {');
     b.writeln('  const $name({');
     b.writeln('    super.key,');
     b.writeln('    this.width,');
@@ -139,61 +131,41 @@ class SvgGenerator {
       b.writeln();
     }
 
-    b.writeln('  Size _defaultSizeFor(BoxConstraints constraints) {');
-    b.writeln('    final svgAspect = $name._viewBoxHeight / $name._viewBoxWidth;');
-    b.writeln('    var width = $name._svgWidth;');
-    b.writeln('    if (constraints.hasBoundedWidth) {');
-    b.writeln('      width = math.min(width, constraints.maxWidth);');
-    b.writeln('    }');
-    b.writeln('    if (constraints.hasBoundedHeight) {');
-    b.writeln('      width = math.min(width, constraints.maxHeight / svgAspect);');
-    b.writeln('    }');
-    b.writeln('    return Size(width, width * svgAspect);');
-    b.writeln('  }');
+    b.writeln('  @override');
+    b.writeln('  double? get svgWidgetWidth => width;');
     b.writeln();
     b.writeln('  @override');
-    b.writeln('  Widget build(BuildContext context) {');
-    b.writeln('    final hasExplicitSize = widget.width != null || widget.height != null;');
-    b.writeln('    final svgAspect = $name._viewBoxHeight / $name._viewBoxWidth;');
-    b.writeln(
-      '    final width = widget.width ?? (widget.height != null ? widget.height! / svgAspect : $name._svgWidth);',
-    );
-    b.writeln('    final height = widget.height ?? width * svgAspect;');
+    b.writeln('  double? get svgWidgetHeight => height;');
     b.writeln();
-    b.writeln('    if (!hasExplicitSize) {');
-    b.writeln('      return LayoutBuilder(');
-    b.writeln('        builder: (context, constraints) {');
-    b.writeln('          final size = _defaultSizeFor(constraints);');
-    b.writeln('          return _buildPainter(width: size.width, height: size.height);');
-    b.writeln('        },');
-    b.writeln('      );');
-    b.writeln('    }');
+    b.writeln('  @override');
+    b.writeln('  double get svgNativeWidth => $name._svgWidth;');
     b.writeln();
-    b.writeln('    return OverflowBox(');
-    b.writeln('      alignment: Alignment.topLeft,');
-    b.writeln('      fit: OverflowBoxFit.deferToChild,');
-    b.writeln('      minWidth: width,');
-    b.writeln('      maxWidth: width,');
-    b.writeln('      minHeight: height,');
-    b.writeln('      maxHeight: height,');
-    b.writeln('      child: _buildPainter(width: width, height: height),');
-    b.writeln('    );');
-    b.writeln('  }');
+    b.writeln('  @override');
+    b.writeln('  double get svgNativeHeight => $name._svgHeight;');
     b.writeln();
-    b.writeln('  Widget _buildPainter({required double width, required double height}) {');
+    b.writeln('  @override');
+    b.writeln('  double get svgViewBoxWidth => $name._viewBoxWidth;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  double get svgViewBoxHeight => $name._viewBoxHeight;');
+    b.writeln();
+
+    b.writeln('  @override');
+    b.writeln('  Widget buildPainter({required double width, required double height}) {');
+    final painterName = _baseName;
     b.writeln('    return SizedBox.fromSize(');
     b.writeln('      size: Size(width, height),');
     b.writeln('      child: RepaintBoundary(');
     b.writeln('        child: CustomPaint(');
     if (colors.isNotEmpty) {
-      b.writeln('          painter: _$name' + 'Painter(');
+      b.writeln('          painter: _$painterName' + 'Painter(');
       for (final color in colors) {
         final hex = _colorToHex(color.r, color.g, color.b, color.a);
-        b.writeln('            color${color.index}: widget.color${color.index} ?? const Color($hex),');
+        b.writeln('            color${color.index}: this.color${color.index} ?? const Color($hex),');
       }
       b.writeln('          ),');
     } else {
-      b.writeln('          painter: _$name' + 'Painter(),');
+      b.writeln('          painter: _$painterName' + 'Painter(),');
     }
     b.writeln('          size: Size(width, height),');
     b.writeln('        ),');
@@ -207,7 +179,7 @@ class SvgGenerator {
   // ── Painter class ──
 
   void _writePainterClass(StringBuffer b, List<_ColorEntry> colors) {
-    final name = widgetClassName;
+    final name = _baseName;
 
     // Build color lookup: key → index
     final colorKeyToIndex = <String, int>{};
@@ -283,14 +255,15 @@ class SvgGenerator {
 
     // ── Paint method ──
 
+    final widgetName = widgetClassName;
     b.writeln('  @override');
     b.writeln('  void paint(Canvas canvas, Size size) {');
-    b.writeln('    final scaleX = size.width / $name._viewBoxWidth;');
-    b.writeln('    final scaleY = size.height / $name._viewBoxHeight;');
+    b.writeln('    final scaleX = size.width / $widgetName._viewBoxWidth;');
+    b.writeln('    final scaleY = size.height / $widgetName._viewBoxHeight;');
     b.writeln('    canvas');
     b.writeln('      ..save()');
     b.writeln('      ..scale(scaleX, scaleY)');
-    b.writeln('      ..translate(-$name._viewBoxMinX, -$name._viewBoxMinY);');
+    b.writeln('      ..translate(-$widgetName._viewBoxMinX, -$widgetName._viewBoxMinY);');
     b.writeln();
 
     // Emit draw calls with matching counters
@@ -322,10 +295,6 @@ class SvgGenerator {
     }
     b.writeln('  }');
     b.writeln();
-    b.writeln('  static Color _applyOpacity(Color color, double opacity) {');
-    b.writeln('    if (opacity == 1) return color;');
-    b.writeln('    return color.withValues(alpha: math.min(1.0, math.max(0.0, color.a * opacity)));');
-    b.writeln('  }');
     b.writeln('}');
     b.writeln();
   }
@@ -563,14 +532,14 @@ class SvgGenerator {
 
   String _colorRef(String param, String opacity, String paintName) {
     if (opacity == '1') return '$paintName..color = $param';
-    return '$paintName..color = _applyOpacity($param, $opacity)';
+    return '$paintName..color = _dotdartApplyOpacity($param, $opacity)';
   }
 
   String _strokeColorRef(String param, String opacity, double width, String cap, String join) {
     if (opacity == '1') {
       return '_strokePaint..color = $param..strokeWidth = ${_fmt(width)}..strokeCap = $cap..strokeJoin = $join';
     }
-    return '_strokePaint..color = _applyOpacity($param, $opacity)..strokeWidth = ${_fmt(width)}..strokeCap = $cap..strokeJoin = $join';
+    return '_strokePaint..color = _dotdartApplyOpacity($param, $opacity)..strokeWidth = ${_fmt(width)}..strokeCap = $cap..strokeJoin = $join';
   }
 
   String _colorToHex(double r, double g, double b, double a) {

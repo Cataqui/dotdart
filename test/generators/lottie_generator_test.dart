@@ -53,14 +53,14 @@ void main() {
   group('LottieGenerator', () {
     test('when generating code, it should produce valid Dart', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
           isNotEmpty,
-          contains('class Test extends StatefulWidget'),
-          contains('class _TestState extends State<Test>'),
+          contains('class _Test extends StatefulWidget'),
+          contains('class _TestState extends State<_Test>'),
           contains('class _TestPainter extends CustomPainter'),
           isNot(contains('class _DotdartScalarKeyframe')),
         ),
@@ -69,49 +69,21 @@ void main() {
 
     test('when generating code, it should include the correct widget class name', () {
       final generator = LottieGenerator(animation, 'assets/lottie/my_animation.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
-      expect(code, contains('class MyAnimation extends StatefulWidget'));
+      expect(code, contains('class _MyAnimation extends StatefulWidget'));
     });
 
     test('when generating code, it should include color properties', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('color1'));
     });
 
-    test('when generating code, it should include the header comment', () {
-      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
-
-      expect(code, allOf(contains('// GENERATED CODE - DO NOT MODIFY BY HAND'), contains('//  dotdart')));
-    });
-
-    test('when generating code, it should include the coverage ignore directive', () {
-      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
-
-      expect(code, contains('// coverage:ignore-file'));
-    });
-
-    test('when generating code, it should include the correct imports', () {
-      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
-
-      expect(
-        code,
-        allOf(
-          contains("import 'dart:math' as math;"),
-          contains("import 'package:flutter/material.dart';"),
-          contains("import 'package:flutter/rendering.dart' show OverflowBoxFit;"),
-        ),
-      );
-    });
-
     test('when generating code, it should include the lottie dimensions', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -119,83 +91,60 @@ void main() {
       );
     });
 
-    test('when generating code with one explicit side, it should derive the other side from the Lottie ratio', () {
+    test('when generating code, it should use the shared Lottie animation state mixin', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
-          contains('final lottieAspect = Test._lottieHeight / Test._lottieWidth;'),
-          contains('widget.height! / lottieAspect'),
-          contains('final height = widget.height ?? width * lottieAspect;'),
+          contains('_DotdartLottieAnimationState<_Test>'),
+          contains('double? get lottieWidgetWidth => widget.width;'),
+          contains('double get lottieCanvasWidth => _Test._lottieWidth;'),
+          contains('Duration get lottieLoopDuration => _Test._loopDuration;'),
         ),
       );
     });
 
-    test('when generating code without an explicit size, it should fit parent constraints without distorting', () {
+    test('when generating code, it should delegate sizing and build to the mixin', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
-          contains('Size _defaultSizeFor(BoxConstraints constraints)'),
-          contains('width = math.min(width, constraints.maxWidth);'),
-          contains('width = math.min(width, constraints.maxHeight / lottieAspect);'),
-          contains('return LayoutBuilder('),
-          contains('return _buildPainter(width: size.width, height: size.height);'),
+          isNot(contains('Size _defaultSizeFor')),
+          isNot(contains('Widget build(BuildContext context)')),
+          isNot(contains('void initState()')),
+          isNot(contains('void dispose()')),
         ),
       );
-    });
-
-    test('when generating code with an explicit size, it should allow painting beyond parent constraints', () {
-      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
-
-      expect(
-        code,
-        allOf(
-          contains('final hasExplicitSize = widget.width != null || widget.height != null;'),
-          contains('return OverflowBox('),
-          contains('minWidth: width'),
-          contains('maxHeight: height'),
-          contains('child: _buildPainter(width: width, height: height)'),
-        ),
-      );
-    });
-
-    test('when generating code with an explicit size inside a column, it should defer layout size to the child', () {
-      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
-
-      expect(code, contains('fit: OverflowBoxFit.deferToChild'));
     });
 
     test('when generating code, it should include the loop duration', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('Duration(milliseconds: 1000)'));
     });
 
     test('when generating code, it should include manual progress playback control', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('final double? progress;'), contains('final bool respectDisableAnimations;')));
     });
 
     test('when generating code, it should replace the animated property with nullable progress', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('final bool animated;')));
     });
 
     test('when generating code, it should include the painter with reusable paints', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -209,23 +158,26 @@ void main() {
       );
     });
 
-    test('when generating code, it should include the lifecycle observer', () {
+    test('when generating code, it should delegate lifecycle management to the mixin', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('WidgetsBindingObserver'), contains('didChangeAppLifecycleState')));
+      expect(code, contains('_DotdartLottieAnimationState<_Test>'));
+      expect(code, isNot(contains('void initState()')));
+      expect(code, isNot(contains('void didChangeAppLifecycleState')));
+      expect(code, isNot(contains('void dispose()')));
     });
 
     test('when generating code, it should include the draw method for the layer', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('_draw_Layer_1_0'));
     });
 
     test('when generating code, it should include the rect drawing code', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -238,74 +190,66 @@ void main() {
 
     test('when generating code with fills and strokes, it should allocate only two reusable paint objects', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(RegExp(r'Paint\(\)').allMatches(code).length, 2);
     });
 
     test('when generating code, it should include the fill and stroke paints', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('PaintingStyle.fill'), contains('PaintingStyle.stroke')));
     });
 
     test('when generating code, it should be valid Dart that can be parsed', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       // Verify it's valid Dart by checking it can be parsed
       // (DartFormatter already validates during generation)
       expect((code.isNotEmpty, code.runes.length > 500), (true, true));
     });
 
-    test('when generating code for reduced-motion users, it should disable the animation controller', () {
+    test('when generating code for reduced-motion users, it should expose the respect flag via a getter', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
+          contains('bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;'),
           contains('this.respectDisableAnimations = true'),
-          contains('widget.respectDisableAnimations &&'),
-          contains('(MediaQuery.maybeDisableAnimationsOf(context) ?? false)'),
         ),
       );
     });
 
-    test('when generating code with manual progress, it should stop automatic playback', () {
+    test('when generating code with manual progress, it should expose progress via a getter', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
-      expect(
-        code,
-        allOf(
-          contains('return widget.progress == null &&'),
-          contains('_canAnimateForLifecycle &&'),
-          contains('!disableAnimations;'),
-        ),
-      );
+      expect(code, contains('double? get lottieProgress => widget.progress;'));
     });
 
     test('when generating code with manual progress, it should clamp the fixed progress before painting', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),'));
     });
 
     test('when generating code with manual progress, it should repaint when the fixed progress changes', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('oldDelegate._fixedProgress != _fixedProgress'));
     });
 
-    test('when generating code with layer opacity, it should apply opacity to regular paints without saveLayer', () {
+    test('when generating code with layer opacity, it should apply opacity via the shared helper', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('_applyOpacity(color1, layerOpacity * 1)'), isNot(contains('saveLayer'))));
+      expect(code, allOf(contains('_dotdartApplyOpacity(color1, layerOpacity * 1)'), isNot(contains('saveLayer'))));
     });
 
     test('when generating code for an open path, it should not close the generated path', () {
@@ -346,9 +290,55 @@ void main() {
         ],
       );
       final generator = LottieGenerator(openPathAnimation, 'assets/lottie/open_path.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('..close()')));
+    });
+
+    test('when getting params, it should include standard constructor parameters', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'key' && p.type == 'Key?'), isTrue);
+    });
+
+    test('when getting params, it should include width and height', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'width' && p.type == 'double?'), isTrue);
+      expect(params.any((p) => p.name == 'height' && p.type == 'double?'), isTrue);
+    });
+
+    test('when getting params, it should include progress', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'progress' && p.type == 'double?'), isTrue);
+    });
+
+    test('when getting params, it should include respectDisableAnimations with default true', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      final param = params.firstWhere((p) => p.name == 'respectDisableAnimations');
+      expect(param.type, 'bool');
+      expect(param.defaultValue, 'true');
+    });
+
+    test('when getting params, it should include color props for each unique color', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'color1' && p.type == 'Color?'), isTrue);
+    });
+
+    test('when extracting colors from the animation, it should produce correct color entries', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      final colorParams = params.where((p) => p.name.startsWith('color')).toList();
+      expect(colorParams.length, 2);
     });
   });
 
@@ -379,7 +369,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(ellipseAnimation, 'assets/lottie/ellipse.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -416,7 +406,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(ellipseAnimation, 'assets/lottie/ellipse_stroke.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('drawOval'), contains('strokePaint')));
     });
@@ -461,7 +451,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(staticPathAnimation, 'assets/lottie/static_path.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -513,7 +503,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(roundedPathAnimation, 'assets/lottie/rounded_path.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('..cubicTo(0.0002, 0, 1, 1, 1, 1)'));
     });
@@ -559,7 +549,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(closedPathAnimation, 'assets/lottie/closed_path.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('..close()'));
     });
@@ -605,7 +595,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(evenOddAnimation, 'assets/lottie/even_odd.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('PathFillType.evenOdd'));
     });
@@ -632,7 +622,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(animatedAnimation, 'assets/lottie/animated_opacity.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -665,7 +655,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(incompleteEasingAnimation, 'assets/lottie/incomplete_easing.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('const Cubic(')));
     });
@@ -692,7 +682,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(sharedEasingAnimation, 'assets/lottie/shared_easing.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -727,7 +717,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(constantAnimation, 'assets/lottie/constant_transform.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('canvas.translate(25, 0);'), isNot(contains('_kf0_posX'))));
     });
@@ -756,7 +746,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(constantSegmentAnimation, 'assets/lottie/constant_segment.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('if (frame < 30) {\n      return 0;\n    }'));
     });
@@ -801,7 +791,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(multiLayer, 'assets/lottie/multi_layer.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('_draw_Layer_A_0'), contains('_draw_Layer_B_1')));
     });
@@ -820,7 +810,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(multiLayer, 'assets/lottie/layer_order.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code.indexOf('_draw_Bottom_Layer_1(canvas, frame);') < code.indexOf('_draw_Top_Layer_0(canvas, frame);'),
@@ -861,7 +851,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(multiGroup, 'assets/lottie/multi_group.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('Group: Group 1'), contains('Group: Group 2')));
     });
@@ -892,7 +882,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(multiRect, 'assets/lottie/multi_rect.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('_rrect0_0_0'), contains('_rrect0_0_1'), isNot(contains('final bodyRect ='))));
     });
@@ -923,7 +913,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(compoundRect, 'assets/lottie/compound_rect.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -992,7 +982,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(compoundStroke, 'assets/lottie/compound_stroke.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -1060,14 +1050,14 @@ void main() {
         ],
       );
       final generator = LottieGenerator(filledStroke, 'assets/lottie/filled_stroke.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('compoundStrokePath0')));
     });
 
     test('when generating code with an identity group transform, it should omit redundant canvas stack operations', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('// Group: Group 1\n    canvas.save();')));
     });
@@ -1105,7 +1095,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(transparentGroupAnimation, 'assets/lottie/transparent_group.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(isNot(contains('Group: Hidden')), contains('Group: Visible')));
     });
@@ -1147,7 +1137,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(lineStyleAnimation, 'assets/lottie/line_style.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('StrokeCap.butt'), contains('StrokeJoin.bevel')));
     });
@@ -1180,7 +1170,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(rotationAnimation, 'assets/lottie/rotation.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('canvas.rotate('));
     });
@@ -1211,7 +1201,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(scaleAnimation, 'assets/lottie/scale.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('canvas.scale'));
     });
@@ -1242,7 +1232,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(anchorAnimation, 'assets/lottie/anchor.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('translate(-10, -20)'));
     });
@@ -1252,19 +1242,19 @@ void main() {
     test('when the filename has dashes, it should convert to PascalCase', () {
       final generator = LottieGenerator(animation, 'assets/lottie/my-cool-animation.json');
 
-      expect(generator.widgetClassName, 'MyCoolAnimation');
+      expect(generator.widgetClassName, '_MyCoolAnimation');
     });
 
     test('when the filename has underscores, it should convert to PascalCase', () {
       final generator = LottieGenerator(animation, 'assets/lottie/my_awesome_file.json');
 
-      expect(generator.widgetClassName, 'MyAwesomeFile');
+      expect(generator.widgetClassName, '_MyAwesomeFile');
     });
 
     test('when the filename has spaces, it should convert to PascalCase', () {
       final generator = LottieGenerator(animation, 'assets/lottie/my file name.json');
 
-      expect(generator.widgetClassName, 'MyFileName');
+      expect(generator.widgetClassName, '_MyFileName');
     });
   });
 
@@ -1296,7 +1286,7 @@ void main() {
         ],
       );
       final generator = LottieGenerator(dedupAnimation, 'assets/lottie/dedup.json');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('color2')));
       expect(code, contains('color1'));

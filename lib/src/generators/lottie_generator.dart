@@ -1,12 +1,14 @@
 // StringBuffer.writeln returns void. Cascading void calls is valid Dart but
 // makes the code harder to read. This is a known false positive.
-// ignore_for_file: cascade_invocations
-
-import 'package:dart_style/dart_style.dart';
+// String concatenation with '+' is needed for interpolated class names.
+// ignore_for_file: cascade_invocations, prefer_adjacent_string_concatenation
 
 import '../models/lottie_animation.dart';
 import '../models/lottie_layer.dart';
 import '../models/lottie_shape.dart';
+
+import 'accessor_param.dart';
+import 'naming.dart';
 
 /// Generates a self-contained Dart widget file from a [LottieAnimation] model.
 class LottieGenerator {
@@ -18,28 +20,42 @@ class LottieGenerator {
   /// The original asset path (e.g. `assets/lottie/swipe_up_onboarding.json`).
   final String sourcePath;
 
-  /// Generates the Dart source code for the widget.
-  String generate() {
+  /// Returns the constructor parameters of the generated widget.
+  ///
+  /// Used by `NamespaceAssembler` to emit matching accessor methods.
+  List<AccessorParam> get params {
+    final colors = _extractColors();
+    final result = <AccessorParam>[
+      const AccessorParam(name: 'key', type: 'Key?'),
+      const AccessorParam(name: 'width', type: 'double?'),
+      const AccessorParam(name: 'height', type: 'double?'),
+      const AccessorParam(name: 'progress', type: 'double?'),
+      const AccessorParam(name: 'respectDisableAnimations', type: 'bool', defaultValue: 'true'),
+    ];
+    for (final color in colors) {
+      result.add(AccessorParam(name: 'color${color.index}', type: 'Color?'));
+    }
+    return result;
+  }
+
+  /// Generates the widget class (and state/painter) source fragment (no header/imports).
+  ///
+  /// The returned string is not Dart-formatted — the caller (`NamespaceAssembler`)
+  /// formats the combined file.
+  String generateWidgetClass() {
     final b = StringBuffer();
     final colors = _extractColors();
-
-    _writeHeader(b);
-    _writeImports(b);
     _writeWidgetClass(b, colors);
     _writeStateClass(b, colors);
     _writePainterClass(b, colors);
-
-    return DartFormatter(languageVersion: DartFormatter.latestLanguageVersion).format(b.toString());
+    return b.toString();
   }
 
   /// Widget class name derived from the source file.
-  String get widgetClassName {
-    final name = sourcePath.split('/').last.split('.').first;
-    return name
-        .split(RegExp(r'[_\s-]+'))
-        .map((s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '')
-        .join();
-  }
+  String get widgetClassName => '_${Naming.widgetClassName(sourcePath)}';
+
+  /// The PascalCase name without the private `_` prefix — used for inner classes.
+  String get _baseName => Naming.widgetClassName(sourcePath);
 
   // ── Color extraction ──
 
@@ -105,28 +121,6 @@ class LottieGenerator {
     return curves;
   }
 
-  // ── Header ──
-
-  void _writeHeader(StringBuffer b) {
-    b.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-    b.writeln('// *****************************************************');
-    b.writeln('//  dotdart');
-    b.writeln('// *****************************************************');
-    b.writeln();
-    b.writeln('// coverage:ignore-file');
-    b.writeln('// ignore_for_file: type=lint, unused_import, unused_element, unused_element_parameter');
-    b.writeln();
-  }
-
-  // ── Imports ──
-
-  void _writeImports(StringBuffer b) {
-    b.writeln("import 'dart:math' as math;");
-    b.writeln("import 'package:flutter/material.dart';");
-    b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
-    b.writeln();
-  }
-
   // ── Widget class ──
 
   void _writeWidgetClass(StringBuffer b, List<_ColorEntry> colors) {
@@ -190,7 +184,7 @@ class LottieGenerator {
     }
 
     b.writeln('  @override');
-    b.writeln('  State<$className> createState() => _${className}State();');
+    b.writeln('  State<$className> createState() => _${_baseName}State();');
     b.writeln('}');
     b.writeln();
   }
@@ -199,44 +193,40 @@ class LottieGenerator {
 
   void _writeStateClass(StringBuffer b, List<_ColorEntry> colors) {
     final className = widgetClassName;
-    b.writeln('class _${className}State extends State<$className>');
-    b.writeln('    with SingleTickerProviderStateMixin, WidgetsBindingObserver {');
-    b.writeln('  late final AnimationController _controller;');
-    b.writeln('  bool _canAnimateForLifecycle = true;');
+    final baseName = _baseName;
+    b.writeln('class _$baseName' + 'State extends State<$className>');
+    b.writeln('    with SingleTickerProviderStateMixin, WidgetsBindingObserver,');
+    b.writeln('        _DotdartLottieAnimationState<$className> {');
     b.writeln();
-    b.writeln('  bool _shouldAnimate() {');
-    b.writeln(
-      '    final disableAnimations = widget.respectDisableAnimations && (MediaQuery.maybeDisableAnimationsOf(context) ?? false);',
-    );
-    b.writeln('    return widget.progress == null && _canAnimateForLifecycle && !disableAnimations;');
-    b.writeln('  }');
+    b.writeln('  @override');
+    b.writeln('  double? get lottieWidgetWidth => widget.width;');
     b.writeln();
-    b.writeln('  void _syncController() {');
-    b.writeln('    if (_shouldAnimate()) {');
-    b.writeln('      if (!_controller.isAnimating) _controller.repeat();');
-    b.writeln('      return;');
-    b.writeln('    }');
-    b.writeln('    _controller.stop();');
-    b.writeln('  }');
+    b.writeln('  @override');
+    b.writeln('  double? get lottieWidgetHeight => widget.height;');
     b.writeln();
-    b.writeln('  Size _defaultSizeFor(BoxConstraints constraints) {');
-    b.writeln('    final lottieAspect = $className._lottieHeight / $className._lottieWidth;');
-    b.writeln('    var width = $className._lottieWidth;');
-    b.writeln('    if (constraints.hasBoundedWidth) {');
-    b.writeln('      width = math.min(width, constraints.maxWidth);');
-    b.writeln('    }');
-    b.writeln('    if (constraints.hasBoundedHeight) {');
-    b.writeln('      width = math.min(width, constraints.maxHeight / lottieAspect);');
-    b.writeln('    }');
-    b.writeln('    return Size(width, width * lottieAspect);');
-    b.writeln('  }');
+    b.writeln('  @override');
+    b.writeln('  double? get lottieProgress => widget.progress;');
     b.writeln();
-    b.writeln('  Widget _buildPainter({required double width, required double height}) {');
+    b.writeln('  @override');
+    b.writeln('  bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  Duration get lottieLoopDuration => $className._loopDuration;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  double get lottieCanvasWidth => $className._lottieWidth;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  double get lottieCanvasHeight => $className._lottieHeight;');
+    b.writeln();
+
+    b.writeln('  @override');
+    b.writeln('  Widget buildPainter({required double width, required double height}) {');
     b.writeln('    return SizedBox.fromSize(');
     b.writeln('      size: Size(width, height),');
     b.writeln('      child: RepaintBoundary(');
     b.writeln('        child: CustomPaint(');
-    b.writeln('          painter: _${className}Painter(');
+    b.writeln('          painter: _$baseName' + 'Painter(');
     b.writeln('            animationProgress: _shouldAnimate() ? _controller : null,');
     b.writeln('            fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),');
 
@@ -251,70 +241,6 @@ class LottieGenerator {
     b.writeln('      ),');
     b.writeln('    );');
     b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  void initState() {');
-    b.writeln('    super.initState();');
-    b.writeln('    _controller = AnimationController(');
-    b.writeln('      vsync: this,');
-    b.writeln('      duration: $className._loopDuration,');
-    b.writeln('    );');
-    b.writeln('    WidgetsBinding.instance.addObserver(this);');
-    b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  void didChangeDependencies() {');
-    b.writeln('    super.didChangeDependencies();');
-    b.writeln('    _syncController();');
-    b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  void didUpdateWidget($className oldWidget) {');
-    b.writeln('    super.didUpdateWidget(oldWidget);');
-    b.writeln('    _syncController();');
-    b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  void dispose() {');
-    b.writeln('    WidgetsBinding.instance.removeObserver(this);');
-    b.writeln('    _controller.dispose();');
-    b.writeln('    super.dispose();');
-    b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  void didChangeAppLifecycleState(AppLifecycleState state) {');
-    b.writeln('    _canAnimateForLifecycle = state == AppLifecycleState.resumed;');
-    b.writeln('    _syncController();');
-    b.writeln('  }');
-    b.writeln();
-    b.writeln('  @override');
-    b.writeln('  Widget build(BuildContext context) {');
-    b.writeln('    final hasExplicitSize = widget.width != null || widget.height != null;');
-    b.writeln('    final lottieAspect = $className._lottieHeight / $className._lottieWidth;');
-    b.writeln(
-      '    final width = widget.width ?? (widget.height != null ? widget.height! / lottieAspect : $className._lottieWidth);',
-    );
-    b.writeln('    final height = widget.height ?? width * lottieAspect;');
-    b.writeln();
-    b.writeln('    if (!hasExplicitSize) {');
-    b.writeln('      return LayoutBuilder(');
-    b.writeln('        builder: (context, constraints) {');
-    b.writeln('          final size = _defaultSizeFor(constraints);');
-    b.writeln('          return _buildPainter(width: size.width, height: size.height);');
-    b.writeln('        },');
-    b.writeln('      );');
-    b.writeln('    }');
-    b.writeln();
-    b.writeln('    return OverflowBox(');
-    b.writeln('      alignment: Alignment.topLeft,');
-    b.writeln('      fit: OverflowBoxFit.deferToChild,');
-    b.writeln('      minWidth: width,');
-    b.writeln('      maxWidth: width,');
-    b.writeln('      minHeight: height,');
-    b.writeln('      maxHeight: height,');
-    b.writeln('      child: _buildPainter(width: width, height: height),');
-    b.writeln('    );');
-    b.writeln('  }');
     b.writeln('}');
     b.writeln();
   }
@@ -323,9 +249,10 @@ class LottieGenerator {
 
   void _writePainterClass(StringBuffer b, List<_ColorEntry> colors) {
     final className = widgetClassName;
+    final baseName = _baseName;
     final curves = _extractCurves();
-    b.writeln('class _${className}Painter extends CustomPainter {');
-    b.writeln('  _${className}Painter({');
+    b.writeln('class _$baseName' + 'Painter extends CustomPainter {');
+    b.writeln('  _$baseName' + 'Painter({');
     b.writeln('    required double fixedProgress,');
     b.writeln('    Animation<double>? animationProgress,');
 
@@ -390,7 +317,7 @@ class LottieGenerator {
 
     // ── shouldRepaint ──
     b.writeln('  @override');
-    b.writeln('  bool shouldRepaint(covariant _${className}Painter oldDelegate) {');
+    b.writeln('  bool shouldRepaint(covariant _$baseName' + 'Painter oldDelegate) {');
     b.writeln('    return oldDelegate._fixedProgress != _fixedProgress');
     b.writeln('        || oldDelegate._animationProgress != _animationProgress');
 
@@ -644,12 +571,6 @@ class LottieGenerator {
       b.writeln('  }');
       b.writeln();
     }
-
-    b.writeln('  static Color _applyOpacity(Color color, double opacity) {');
-    b.writeln('    if (opacity == 1) return color;');
-    b.writeln('    return color.withValues(alpha: math.min(1.0, math.max(0.0, color.a * opacity)));');
-    b.writeln('  }');
-    b.writeln();
   }
 
   // ── Draw method per layer ──
@@ -851,7 +772,7 @@ class LottieGenerator {
     final paintName = 'compoundFillPaint$groupIndex';
     final colorIdx = _colorIndexForFill(fill, colors);
     final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-    final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+    final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
 
     b.writeln('    final $paintName = _fillPaint..color = $colorRef;');
 
@@ -872,7 +793,7 @@ class LottieGenerator {
     final cap = _lineCap(stroke.lineCap);
     final join = _lineJoin(stroke.lineJoin);
     final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-    final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+    final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
 
     b.writeln(
       '    final $paintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -901,7 +822,7 @@ class LottieGenerator {
     if (fill != null) {
       final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b
         ..writeln('    final $fillPaintName = _fillPaint..color = $colorRef;')
         ..writeln('    canvas.drawRRect($bodyName, $fillPaintName);');
@@ -912,7 +833,7 @@ class LottieGenerator {
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -940,7 +861,7 @@ class LottieGenerator {
     if (fill != null) {
       final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b
         ..writeln('    final $fillPaintName = _fillPaint..color = $colorRef;')
         ..writeln('    canvas.drawOval($rectName, $fillPaintName);');
@@ -951,7 +872,7 @@ class LottieGenerator {
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -981,7 +902,7 @@ class LottieGenerator {
     if (fill != null) {
       final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b.writeln('    final $fillPaintName = _fillPaint..color = $colorRef;');
       if (fill.fillRule == 2) {
         b
@@ -999,7 +920,7 @@ class LottieGenerator {
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_applyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',

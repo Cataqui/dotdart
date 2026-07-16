@@ -1,6 +1,6 @@
 name: dotdart
 description: Build-time Flutter asset compiler that turns visual assets into dependency-free Dart widget code.
-version: 0.2.0
+version: 0.3.0
 repository: https://github.com/cataqui/mobile
 issue_tracker: https://github.com/cataqui/mobile/issues
 documentation: https://github.com/cataqui/mobile/tree/main/packages/dotdart

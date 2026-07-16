@@ -1,3 +1,38 @@
+## 0.3.0
+
+- **BREAKING:** Generated output is now grouped by source folder into namespace
+  classes. Each folder produces one flat `<folder>.g.dart` file (e.g.
+  `lib/gen/icons.g.dart`) containing an `abstract final class $NamespaceName`
+  with one static method per asset.
+  - Before: `lib/gen/cross.g.dart` → `const Cross(width: 24)`.
+  - After: `lib/gen/icons.g.dart` → `$Icons.cross(width: 24)`.
+- **BREAKING:** Widget classes are now library-private (prefixed with `_`).
+  Consumers must use the `$Namespace.assetName(...)` accessor methods, which
+  return `Widget`. Direct construction or `find.byType` with the generated class
+  is no longer possible from outside the generated file.
+- **BREAKING:** The old flat per-asset `.g.dart` files are no longer generated.
+  Existing flat files are deleted on the first build after upgrading.
+- Added: shared mixins in generated files — `_DotdartSvgSizing` for SVG widgets
+  and `_DotdartLottieAnimationState<T>` for Lottie widgets — eliminating
+  duplicated `build()`, `_defaultSizeFor()`, `_applyOpacity()`, and lifecycle
+  methods across all generated classes in a file.
+- Added: `DotdartNamespaceCollisionException` thrown when two assets in the
+  same folder produce identical widget class names.
+- Added: `NamespaceAssembler` that produces the combined namespace file
+  with shared header, imports, mixins, and all widget classes.
+- Added: `AccessorParam` model and `Naming` helper for deriving accessor/method
+  names from file paths (camelCase for methods, PascalCase for classes).
+- Added: stale file cleanup — the post-process builder deletes `.g.dart` files
+  from previous runs that are no longer in the current output set.
+- Fixed: SVG generator no longer emits `widget.width`/`widget.height` inside
+  `StatelessWidget.build()` — `StatelessWidget` has no `widget` property.
+  This was masked by `.g.dart` analysis exclusion.
+- Migration: update import paths from `package:<app>/gen/<asset>.g.dart` to
+  `package:<app>/gen/<folder>.g.dart` and replace direct widget construction
+  with `$Namespace.assetName(...)`. In tests, find widgets via
+  `find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ClassName')`
+  instead of `find.byType(ClassName)`.
+
 ## 0.2.0
 
 - Add **SVG pipeline**: `<path>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`,

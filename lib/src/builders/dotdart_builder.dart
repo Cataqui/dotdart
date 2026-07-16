@@ -1,3 +1,7 @@
+// StringBuffer.writeln returns void. Cascading void calls is valid Dart but
+// makes the code harder to read. This is a known false positive.
+// ignore_for_file: cascade_invocations
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,7 +10,10 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../generators/accessor_param.dart';
 import '../generators/lottie_generator.dart';
+import '../generators/namespace_assembler.dart';
+import '../generators/naming.dart';
 import '../generators/svg_generator.dart';
 import '../parsers/lottie_parser.dart';
 import '../parsers/svg/svg_parser.dart';
@@ -63,23 +70,25 @@ class _DotdartBuilder implements Builder {
     final pubspecId = AssetId(buildStep.inputId.package, 'pubspec.yaml');
 
     if (!await buildStep.canRead(pubspecId)) {
-      await _writeManifest(buildStep, null, []);
+      await _writeManifest(buildStep, null, [], []);
       return;
     }
 
     final pubspecContent = await buildStep.readAsString(pubspecId);
     final config = _parseConfig(pubspecContent);
     if (config == null) {
-      await _writeManifest(buildStep, null, []);
+      await _writeManifest(buildStep, null, [], []);
       return;
     }
 
     final packageRoot = await _packageRoot(buildStep);
-    final outputs = <_ManifestOutput>[];
+
+    // Collect all raw assembled assets from lottie and svg inputs.
+    final rawAssets = <_RawAsset>[];
 
     for (final input in config.lottieInputs) {
-      final glob = input.endsWith('.json') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.json';
-      await for (final assetId in buildStep.findAssets(Glob(glob))) {
+      final globPattern = input.endsWith('.json') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.json';
+      await for (final assetId in buildStep.findAssets(Glob(globPattern))) {
         final content = await buildStep.readAsString(assetId);
         if (!_isLottieJson(content)) continue;
 
@@ -89,17 +98,20 @@ class _DotdartBuilder implements Builder {
         }
 
         final generator = LottieGenerator(result.animation, assetId.path);
-        final output = generator.generate();
-
-        final fileName = '${p.basenameWithoutExtension(assetId.path)}.g.dart';
-        final outputPath = p.posix.join(config.outputDir, fileName);
-        outputs.add(_ManifestOutput(path: outputPath, contents: output));
+        rawAssets.add(_RawAsset(
+          assetId: assetId,
+          generator: generator,
+          widgetSource: generator.generateWidgetClass(),
+          params: generator.params,
+          widgetClassName: generator.widgetClassName,
+          assetType: DotdartAssetType.lottie,
+        ));
       }
     }
 
     for (final input in config.svgInputs) {
-      final glob = input.endsWith('.svg') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.svg';
-      await for (final assetId in buildStep.findAssets(Glob(glob))) {
+      final globPattern = input.endsWith('.svg') ? input : '${input.replaceFirst(RegExp(r'/$'), '')}/*.svg';
+      await for (final assetId in buildStep.findAssets(Glob(globPattern))) {
         final content = await buildStep.readAsString(assetId);
         if (!_isSvgXml(content)) continue;
 
@@ -109,15 +121,106 @@ class _DotdartBuilder implements Builder {
         }
 
         final generator = SvgGenerator(result.document, assetId.path);
-        final output = generator.generate();
-
-        final fileName = '${p.basenameWithoutExtension(assetId.path)}.g.dart';
-        final outputPath = p.posix.join(config.outputDir, fileName);
-        outputs.add(_ManifestOutput(path: outputPath, contents: output));
+        rawAssets.add(_RawAsset(
+          assetId: assetId,
+          generator: null,
+          widgetSource: generator.generateWidgetClass(),
+          params: generator.params,
+          widgetClassName: generator.widgetClassName,
+          assetType: DotdartAssetType.svg,
+        ));
       }
     }
 
-    await _writeManifest(buildStep, packageRoot, outputs);
+    // Group by namespace key derived from parent folder.
+    final namespaceGroups = <String, List<_RawAsset>>{};
+    for (final raw in rawAssets) {
+      final folderSegment = _parentFolder(raw.assetId.path);
+      namespaceGroups.putIfAbsent(folderSegment, () => []).add(raw);
+    }
+
+    final outputs = <_ManifestOutput>[];
+
+    for (final entry in namespaceGroups.entries) {
+      final folderSegment = entry.key;
+      final assets = entry.value;
+
+      // Sort by accessor name for deterministic output.
+      assets.sort((a, b) => a.accessorName.compareTo(b.accessorName));
+
+      // Detect class-name collisions within the namespace.
+      final seen = <String>{};
+      for (final asset in assets) {
+        if (!seen.add(asset.widgetClassName)) {
+          throw DotdartNamespaceCollisionException(
+            'Two assets in the same folder "$folderSegment" produced the same '
+            'widget class name "${asset.widgetClassName}". '
+            'Check that filenames differ by more than case/hyphen/underscore.',
+          );
+        }
+      }
+
+      final namespaceName = Naming.namespaceNameFromFolder(folderSegment);
+      final assembled = assets
+          .map((raw) => AssembledAsset(
+                accessorName: raw.accessorName,
+                widgetClassName: raw.widgetClassName,
+                params: raw.params,
+                widgetSource: raw.widgetSource,
+                assetType: raw.assetType,
+              ))
+          .toList();
+
+      final assembler = NamespaceAssembler(
+        namespaceName: namespaceName,
+        folderSegment: folderSegment,
+        assets: assembled,
+      );
+
+      final outputPath = p.posix.join(config.outputDir, '$folderSegment.g.dart');
+      outputs.add(_ManifestOutput(path: outputPath, contents: assembler.assemble()));
+    }
+
+    // Collect stale file paths to delete.
+    final stalePaths = _collectStalePaths(packageRoot, config.outputDir, outputs);
+
+    await _writeManifest(buildStep, packageRoot, outputs, stalePaths);
+  }
+
+  /// Extracts the parent folder name from an asset path.
+  ///
+  /// `assets/icons/cross.svg` → `icons`
+  /// `assets/lotties/swipe_up.json` → `lotties`
+  String _parentFolder(String assetPath) {
+    final parts = assetPath.split('/');
+    // Parent directory is the segment before the filename.
+    return parts.length >= 2 ? parts[parts.length - 2] : parts.first;
+  }
+
+  /// Scans the output directory for existing `.g.dart` files and returns
+  /// paths of those not present in the current [outputs].
+  List<String> _collectStalePaths(String packageRoot, String outputDir, List<_ManifestOutput> outputs) {
+    final currentPaths = outputs.map((o) => o.path).toSet();
+    final genDir = Directory(p.join(packageRoot, outputDir));
+    if (!genDir.existsSync()) return [];
+
+    final stale = <String>[];
+    _walkForGdart(genDir, packageRoot, currentPaths, stale);
+    return stale;
+  }
+
+  void _walkForGdart(Directory dir, String packageRoot, Set<String> currentPaths, List<String> stale) {
+    for (final entry in dir.listSync()) {
+      if (entry is File && entry.path.endsWith('.g.dart')) {
+        final relativePath = p.relative(entry.path, from: packageRoot);
+        final posixPath = p.posix.joinAll(p.split(relativePath));
+        if (!currentPaths.contains(posixPath)) {
+          stale.add(posixPath);
+        }
+      } else if (entry is Directory) {
+        _walkForGdart(entry, packageRoot, currentPaths, stale);
+      }
+    }
   }
 
   Future<String> _packageRoot(BuildStep buildStep) async {
@@ -209,15 +312,21 @@ class _DotdartBuilder implements Builder {
     return normalized;
   }
 
-  Future<void> _writeManifest(BuildStep buildStep, String? packageRoot, List<_ManifestOutput> outputs) {
+  Future<void> _writeManifest(
+    BuildStep buildStep,
+    String? packageRoot,
+    List<_ManifestOutput> outputs,
+    List<String> stalePaths,
+  ) {
     return buildStep.writeAsString(
       AssetId(buildStep.inputId.package, _manifestExtension),
       jsonEncode({
-        'schema_version': 1,
+        'schema_version': 2,
         if (packageRoot != null) 'package_root': packageRoot,
         'outputs': [
           for (final o in outputs) {'path': o.path, 'contents': o.contents},
         ],
+        if (stalePaths.isNotEmpty) 'deleted_outputs': stalePaths,
       }),
     );
   }
@@ -236,6 +345,7 @@ class _DotdartPostProcessBuilder extends PostProcessBuilder {
     final packageRoot = manifest['package_root'] as String?;
     if (packageRoot == null) return;
 
+    // Write new outputs.
     final outputs = (manifest['outputs']! as List<Object?>)
         .whereType<Map<String, Object?>>()
         .map((o) => _ManifestOutput(path: o['path']! as String, contents: o['contents']! as String))
@@ -247,6 +357,17 @@ class _DotdartPostProcessBuilder extends PostProcessBuilder {
         file.parent.createSync(recursive: true);
       }
       file.writeAsStringSync(output.contents);
+    }
+
+    // Delete stale files from previous runs.
+    final deletedPaths = (manifest['deleted_outputs'] as List<Object?>?)
+        ?.whereType<String>()
+        .toList() ?? [];
+    for (final path in deletedPaths) {
+      final file = File(p.join(packageRoot, path));
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
     }
   }
 }
@@ -262,4 +383,34 @@ class _ManifestOutput {
   const _ManifestOutput({required this.path, required this.contents});
   final String path;
   final String contents;
+}
+
+/// Thrown when two assets in the same namespace produce the same widget class name.
+class DotdartNamespaceCollisionException implements Exception {
+  DotdartNamespaceCollisionException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'DotdartNamespaceCollisionException: $message';
+}
+
+/// Internal: holds a parsed asset and its generated artifacts before namespace grouping.
+class _RawAsset {
+  _RawAsset({
+    required this.assetId,
+    required this.generator,
+    required this.widgetSource,
+    required this.params,
+    required this.widgetClassName,
+    required this.assetType,
+  });
+
+  final AssetId assetId;
+  final Object? generator;
+  final String widgetSource;
+  final List<AccessorParam> params;
+  final String widgetClassName;
+  final DotdartAssetType assetType;
+
+  String get accessorName => Naming.accessorName(assetId.path);
 }

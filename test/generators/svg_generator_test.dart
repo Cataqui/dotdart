@@ -17,15 +17,15 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/arrow.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
           isNotEmpty,
-          contains('class Arrow extends StatelessWidget'),
+          contains('class _Arrow extends StatelessWidget with _DotdartSvgSizing'),
           contains('class _ArrowPainter extends CustomPainter'),
-          isNot(contains('class Arrow extends StatefulWidget')),
+          isNot(contains('class Arrow extends')),
         ),
       );
     });
@@ -34,7 +34,7 @@ void main() {
       const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
       final generator = SvgGenerator(doc, 'assets/icons/my_test_icon.svg');
 
-      expect(generator.widgetClassName, 'MyTestIcon');
+      expect(generator.widgetClassName, '_MyTestIcon');
     });
 
     test('when generating code, it should include color properties for each unique color', () {
@@ -48,7 +48,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('color1'));
     });
@@ -64,46 +64,15 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('color2')));
-    });
-
-    test('when generating code, it should include the header comment', () {
-      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
-      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
-
-      expect(code, allOf(contains('// GENERATED CODE - DO NOT MODIFY BY HAND'), contains('//  dotdart')));
-    });
-
-    test('when generating code, it should include the coverage ignore directive', () {
-      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
-      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
-
-      expect(code, contains('// coverage:ignore-file'));
-    });
-
-    test('when generating code, it should include the correct imports', () {
-      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
-      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
-
-      expect(
-        code,
-        allOf(
-          contains("import 'dart:math' as math;"),
-          contains("import 'package:flutter/material.dart';"),
-          contains("import 'package:flutter/rendering.dart' show OverflowBoxFit;"),
-        ),
-      );
     });
 
     test('when generating code, it should not include Flutter animation-related code', () {
       const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -122,7 +91,7 @@ void main() {
     test('when generating code, it should include the viewBox constants', () {
       const doc = SvgDocument(viewBox: SvgViewBox(minX: 3, minY: 5, width: 18, height: 14), children: []);
       final generator = SvgGenerator(doc, 'assets/icons/arrow.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -148,7 +117,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/arrow.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('static final Path __path0 = Path()'));
       expect(code, contains('..moveTo(0, 0)'));
@@ -166,7 +135,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(RegExp(r'Paint\(\)').allMatches(code).length, 2);
     });
@@ -182,7 +151,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -197,9 +166,9 @@ void main() {
     test('when generating code with a viewBox offset, it should translate the canvas', () {
       const doc = SvgDocument(viewBox: SvgViewBox(minX: 3, minY: 5, width: 18, height: 14), children: []);
       final generator = SvgGenerator(doc, 'assets/icons/arrow.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('..translate(-Arrow._viewBoxMinX, -Arrow._viewBoxMinY)')));
+      expect(code, allOf(contains('..translate(-_Arrow._viewBoxMinX, -_Arrow._viewBoxMinY)')));
     });
 
     test('when generating code with no fill or stroke, it should produce no canvas draw calls', () {
@@ -210,7 +179,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/empty.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('canvas.drawPath')));
     });
@@ -231,7 +200,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/cross.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('strokeWidth = 1.5'), contains('StrokeCap.round'), contains('StrokeJoin.round')));
     });
@@ -244,7 +213,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/rect.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('static final RRect _rrect0 = RRect.fromRectAndRadius('));
     });
@@ -255,7 +224,7 @@ void main() {
         children: [SvgCircle(style: SvgStyle(fillColor: (0, 0, 0, 1)), cx: 12, cy: 12, r: 10)],
       );
       final generator = SvgGenerator(doc, 'assets/icons/circle.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, contains('static final Rect _ellipseRect0 = Rect.fromCircle('));
     });
@@ -277,7 +246,7 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/group.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
@@ -300,24 +269,25 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/dedup.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('color2')));
     });
 
-    test('when generating code with the sizing logic, it should match the Lottie-derived pattern', () {
+    test('when generating code with the sizing logic, it should use the shared SVG sizing mixin', () {
       const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect(
         code,
         allOf(
-          contains('Size _defaultSizeFor(BoxConstraints constraints)'),
-          contains('return LayoutBuilder('),
-          contains('return OverflowBox('),
-          contains('fit: OverflowBoxFit.deferToChild'),
-          contains('final hasExplicitSize = widget.width != null || widget.height != null'),
+          contains('with _DotdartSvgSizing'),
+          contains('double? get svgWidgetWidth => width;'),
+          contains('double get svgNativeWidth => _Icon._svgWidth;'),
+          contains('Widget buildPainter({required double width, required double height})'),
+          isNot(contains('Size _defaultSizeFor')),
+          isNot(contains('Widget build(BuildContext context)')),
         ),
       );
     });
@@ -333,9 +303,58 @@ void main() {
         ],
       );
       final generator = SvgGenerator(doc, 'assets/icons/arrow.svg');
-      final code = generator.generate();
+      final code = generator.generateWidgetClass();
 
       expect((code.isNotEmpty, code.runes.length > 1000), (true, true));
+    });
+
+    test('when getting params, it should include standard constructor parameters', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'key' && p.type == 'Key?'), isTrue);
+    });
+
+    test('when getting params, it should include width and height', () {
+      const doc = SvgDocument(viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24), children: []);
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'width' && p.type == 'double?'), isTrue);
+      expect(params.any((p) => p.name == 'height' && p.type == 'double?'), isTrue);
+    });
+
+    test('when getting params, it should include color props for each unique color', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'color1' && p.type == 'Color?'), isTrue);
+    });
+
+    test('when getting params, it should not include color2 when colors are deduplicated', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final params = generator.params;
+
+      expect(params.any((p) => p.name == 'color2'), isFalse);
     });
   });
 }

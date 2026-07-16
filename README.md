@@ -48,23 +48,46 @@ In this monorepo, use the workspace script instead:
 melos gen:all
 ```
 
-## Use the generated Lottie widget
+## Use the generated namespace
 
-For the currently supported Lottie pipeline, if
-`assets/lottie/swipe_up_onboarding.json` is configured, dotdart generates
-`lib/gen/swipe_up_onboarding.g.dart` with a widget named
-`SwipeUpOnboarding`.
+All generated widgets are grouped by their source folder into a namespace file.
+Each folder produces one flat `<folder>.g.dart` file (e.g. `lib/gen/icons.g.dart`)
+with an `abstract final class $FolderName` exposing one static method per asset.
+Widget classes are library-private — consumers interact exclusively through the
+namespace accessors.
+
+### SVG icons example
+
+Assets in `assets/icons/` are accessed via `$Icons` from `lib/gen/icons.g.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:my_app/gen/swipe_up_onboarding.g.dart';
+import 'package:my_app/gen/icons.g.dart';
+
+class MyCloseButton extends StatelessWidget {
+  const MyCloseButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return $Icons.cross(width: 24, color1: Color(0xFFFF0000));
+  }
+}
+```
+
+### Lottie animation example
+
+Assets in `assets/lottie/` are accessed via `$Lottie` from `lib/gen/lottie.g.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:my_app/gen/lottie.g.dart';
 
 class OnboardingHint extends StatelessWidget {
   const OnboardingHint({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const SwipeUpOnboarding(
+    return $Lottie.swipeUpOnboarding(
       width: 160,
       respectDisableAnimations: true,
       color1: Color(0xFFFF4A4B),
@@ -78,10 +101,7 @@ uses the full normalized timeline: `0` is the first frame and `1` is the last
 frame. When `progress` is supplied, automatic playback stops.
 
 ```dart
-const SwipeUpOnboarding(
-  width: 160,
-  progress: 0.5,
-)
+$Lottie.swipeUpOnboarding(width: 160, progress: 0.5);
 ```
 
 Generated Lottie widgets respect platform reduced-motion settings by default.
@@ -89,38 +109,23 @@ Pass `respectDisableAnimations: false` when a specific animation should keep
 playing even if the device is configured to disable animations.
 
 ```dart
-const SwipeUpOnboarding(
-  width: 160,
-  respectDisableAnimations: false,
-)
-```
-
-## Use the generated SVG widget
-
-If `assets/icons/cross.svg` is configured, dotdart generates
-`lib/gen/cross.g.dart` with a widget named `Cross`.
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:my_app/gen/cross.g.dart';
-
-class MyCloseButton extends StatelessWidget {
-  const MyCloseButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Cross(
-      width: 24,
-      color1: Color(0xFFFF0000),
-    );
-  }
-}
+$Lottie.swipeUpOnboarding(width: 160, respectDisableAnimations: false);
 ```
 
 Generated SVG widgets are `StatelessWidget` + `CustomPainter` — no runtime
 XML parsing, no picture cache, no `flutter_svg` dependency. All geometry is
 precompiled to `static final Path` fields. Two reusable `Paint` objects are
 shared across all draw operations.
+
+### Accessor naming
+
+Each asset's accessor name is derived from the filename in lowerCamelCase:
+
+| Source file                   | Accessor method         |
+| ----------------------------- | ----------------------- |
+| `assets/icons/cross.svg`      | `$Icons.cross(...)`     |
+| `assets/icons/arrow_left.svg` | `$Icons.arrowLeft(...)` |
+| `assets/lottie/swipe_up.json` | `$Lottie.swipeUp(...)`  |
 
 ## Configuration Reference
 
@@ -209,7 +214,26 @@ safe. A malformed Lottie file fails the build with an actionable parser error.
 - Expressions
 - Nested groups deeper than the currently supported shape-group structure
 
-## Generated Code Notes
+## Namespace Accessors
+
+Generated widgets are grouped by their source folder into a single namespace
+file per folder. For example, if a `svg:` entry lists `assets/icons/`, all
+icons in that folder produce a combined `lib/gen/icons.g.dart` file.
+
+The namespace class is `abstract final` with a private constructor and one
+`static` method per asset. Each method returns `Widget` and constructs a
+library-private widget class (prefixed with `_`). Consumers never reference
+the widget class directly — they call `$Icons.cross(...)` and get back a
+`Widget`. In tests, find generated widgets via
+`find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ClassName')`.
+
+### Stale file cleanup
+
+The post-process builder automatically deletes `.g.dart` files from previous
+runs that are no longer in the current output set. You do not need to manually
+remove old files after renaming or removing an asset.
+
+### Generated Code Notes
 
 Generated files import only Flutter and `dart:math`. They do not import
 `dotdart`, so your app does not need any dotdart runtime code after generation.
