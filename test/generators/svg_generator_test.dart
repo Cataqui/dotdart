@@ -124,6 +124,33 @@ void main() {
       expect(code, contains('..cubicTo(10, 0, 20, 10, 24, 24)'));
     });
 
+    test('when generating code with an even-odd fill path, it should preserve the fill rule', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), fillRule: SvgFillRule.evenodd),
+            commands: [
+              SvgMoveTo(x: 0, y: 0),
+              SvgLineTo(x: 24, y: 0),
+              SvgLineTo(x: 24, y: 24),
+              SvgLineTo(x: 0, y: 24),
+              SvgClosePath(),
+              SvgMoveTo(x: 8, y: 8),
+              SvgLineTo(x: 16, y: 8),
+              SvgLineTo(x: 16, y: 16),
+              SvgLineTo(x: 8, y: 16),
+              SvgClosePath(),
+            ],
+          ),
+        ],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/even_odd.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('..fillType = PathFillType.evenOdd'));
+    });
+
     test('when generating a fill-only asset, it should emit only the reusable fill paint', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
@@ -362,7 +389,10 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
       final params = generator.params;
 
-      expect(params.any((p) => p.name == 'maintainAspectRatio' && p.type == 'bool' && p.defaultValue == 'true'), isTrue);
+      expect(
+        params.any((p) => p.name == 'maintainAspectRatio' && p.type == 'bool' && p.defaultValue == 'true'),
+        isTrue,
+      );
     });
 
     test('when generating source, it should emit the maintainAspectRatio field declaration in SVG widgets', () {

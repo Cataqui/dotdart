@@ -31,7 +31,8 @@ class SvgGenerator {
         name: 'maintainAspectRatio',
         type: 'bool',
         defaultValue: 'true',
-        documentation: 'When true (default), keeps the native aspect ratio using the larger '
+        documentation:
+            'When true (default), keeps the native aspect ratio using the larger '
             'requested value as the reference. When false, both dimensions are applied as-is and '
             'the asset may distort.',
       ),
@@ -223,8 +224,8 @@ class SvgGenerator {
     void emitGeometry(List<SvgElement> elements) {
       for (final element in elements) {
         switch (element) {
-          case SvgPath(:final commands):
-            _emitPathField(b, pathIdx, commands);
+          case SvgPath(:final commands, :final style):
+            _emitPathField(b, pathIdx, commands, style.fillRule);
             pathIdx++;
           case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
             _emitRectField(b, rrectIdx, x, y, width, height, rx, ry);
@@ -473,8 +474,11 @@ class SvgGenerator {
 
   // ── Field emission helpers ──
 
-  void _emitPathField(StringBuffer b, int idx, List<SvgPathCommand> commands) {
+  void _emitPathField(StringBuffer b, int idx, List<SvgPathCommand> commands, SvgFillRule fillRule) {
     b.writeln('  static final Path __path$idx = Path()');
+    if (fillRule == SvgFillRule.evenodd) {
+      b.writeln('    ..fillType = PathFillType.evenOdd');
+    }
     for (final cmd in commands) {
       switch (cmd) {
         case SvgMoveTo(:final x, :final y):
