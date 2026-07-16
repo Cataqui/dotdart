@@ -211,7 +211,7 @@ void main() {
       expect(code, isNot(contains('_DotdartSvgSizing')));
     });
 
-    test('when assembling mixed asset types, it should emit both shared mixins', () {
+    test('when assembling mixed SVG and Lottie assets, it should emit both shared mixins', () {
       final assembler = NamespaceAssembler(
         namespaceName: 'Mixed',
         folderSegment: 'mixed',
@@ -220,6 +220,25 @@ void main() {
       final code = assembler.assemble();
 
       expect(code, allOf(contains('_DotdartSvgSizing'), contains('_DotdartLottieAnimationState')));
+    });
+
+    test('when assembling mixed SVG, Lottie, and raster assets, it should emit every required shared helper', () {
+      final assembler = NamespaceAssembler(
+        namespaceName: 'Icons',
+        folderSegment: 'icons',
+        assets: [crossAsset, lottieAsset, rasterAsset],
+      );
+      final code = assembler.assemble();
+
+      expect(
+        code,
+        allOf(
+          contains('_DotdartSvgSizing'),
+          contains('_DotdartLottieAnimationState'),
+          contains('_DotdartThumbhashDecoder'),
+          contains('static Future<void> precache(BuildContext context)'),
+        ),
+      );
     });
 
     test('when assembling Lottie assets, the accessor doc should reference .json extension', () {

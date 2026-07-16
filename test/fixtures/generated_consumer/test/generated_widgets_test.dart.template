@@ -14,6 +14,8 @@ void main() {
           home: Column(
             children: [
               $Icons.fixtureIcon(width: 24),
+              $Icons.lottie(width: 40, progress: 0.5),
+              $Icons.photo(width: 24),
               $Lotties.fixtureAnimation(width: 40, progress: 0.5),
               $Images.landscape(width: 80),
               $Images.portrait(height: 80),
@@ -43,6 +45,25 @@ void main() {
 
       final image = tester.widget<Image>(find.byType(Image));
       expect((image.width, image.height), equals((40, 80)));
+    });
+
+    testWidgets('when different asset types share one folder, it should expose them from one namespace', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Column(
+            children: [
+              $Icons.fixtureIcon(width: 24),
+              $Icons.lottie(width: 40, progress: 0.5),
+              $Icons.photo(width: 24),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
     });
 
   });

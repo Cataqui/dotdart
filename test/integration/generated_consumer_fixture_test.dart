@@ -40,8 +40,18 @@ class GeneratedConsumerFixture {
       arguments: const ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
       workingDirectory: fixtureDirectory.path,
     );
+    final firstGeneratedSources = _generatedSourceSnapshot(fixtureDirectory);
     await _run(executable: dart, arguments: const ['analyze', 'lib', 'test'], workingDirectory: fixtureDirectory.path);
     await _run(executable: flutter, arguments: const ['test'], workingDirectory: fixtureDirectory.path);
+    await _run(
+      executable: dart,
+      arguments: const ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      workingDirectory: fixtureDirectory.path,
+    );
+    final secondGeneratedSources = _generatedSourceSnapshot(fixtureDirectory);
+    if (firstGeneratedSources.toString() != secondGeneratedSources.toString()) {
+      throw StateError('Generated consumer fixture changed after a second build_runner run.');
+    }
     return true;
   }
 
@@ -72,6 +82,10 @@ class GeneratedConsumerFixture {
   }
 
   void _writeRasterAssets(Directory fixtureDirectory) {
+    final iconDirectory = Directory('${fixtureDirectory.path}/assets/icons')..createSync(recursive: true);
+    File(
+      '${iconDirectory.path}/photo.png',
+    ).writeAsBytesSync(img.encodePng(img.Image(width: 24, height: 24)..clear(img.ColorRgb8(255, 74, 75))));
     final assetDirectory = Directory('${fixtureDirectory.path}/assets/images')..createSync(recursive: true);
     File(
       '${assetDirectory.path}/landscape.png',
@@ -85,6 +99,18 @@ class GeneratedConsumerFixture {
       ..addFrame(firstFrame, duration: 10)
       ..addFrame(secondFrame, duration: 10);
     File('${assetDirectory.path}/animated.gif').writeAsBytesSync(gifEncoder.finish()!);
+  }
+
+  Map<String, String> _generatedSourceSnapshot(Directory fixtureDirectory) {
+    final generatedDirectory = Directory('${fixtureDirectory.path}/lib/gen');
+    final files =
+        generatedDirectory
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.g.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    return {for (final file in files) file.path.substring(generatedDirectory.path.length + 1): file.readAsStringSync()};
   }
 
   Future<void> _run({

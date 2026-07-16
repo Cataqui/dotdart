@@ -49,5 +49,35 @@ void main() {
         throwsA(isA<DotdartNamespaceCollisionException>()),
       );
     });
+
+    test('when different asset types in one folder produce the same accessor, it should reject both source paths', () {
+      const assets = [
+        GeneratedAssetSpec(
+          sourcePath: 'assets/icons/box.svg',
+          accessorName: 'box',
+          widgetClassName: '_Box',
+          params: [],
+          widgetSource: '',
+          assetType: DotdartAssetType.svg,
+        ),
+        GeneratedAssetSpec(
+          sourcePath: 'assets/icons/box.json',
+          accessorName: 'box',
+          widgetClassName: '_BoxAnimation',
+          params: [],
+          widgetSource: '',
+          assetType: DotdartAssetType.lottie,
+        ),
+      ];
+
+      expect(
+        () => GeneratedNamespaceValidator.validate(folderSegment: 'icons', assets: assets),
+        throwsA(
+          isA<DotdartNamespaceCollisionException>()
+              .having((error) => error.message, 'message', contains('assets/icons/box.svg'))
+              .having((error) => error.message, 'message', contains('assets/icons/box.json')),
+        ),
+      );
+    });
   });
 }

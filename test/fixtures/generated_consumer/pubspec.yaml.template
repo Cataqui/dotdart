@@ -20,10 +20,13 @@ dotdart:
   svg:
     - assets/icons/
   lottie:
+    - assets/icons/lottie.json
     - assets/lotties/
   image:
+    - assets/icons/photo.png
     - assets/images/
 
 flutter:
   assets:
+    - assets/icons/
     - assets/images/

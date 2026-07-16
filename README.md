@@ -81,11 +81,18 @@ Generated files are grouped by the asset's parent folder. For example:
 | -------------------------------- | ------------------------ | ------------------------ |
 | `assets/icons/cross.svg`         | `lib/gen/icons.g.dart`   | `$Icons.cross(...)`      |
 | `assets/icons/arrow_left.svg`    | `lib/gen/icons.g.dart`   | `$Icons.arrowLeft(...)`  |
+| `assets/icons/spinner.json`      | `lib/gen/icons.g.dart`   | `$Icons.spinner(...)`    |
 | `assets/lotties/swipe_up.json`   | `lib/gen/lotties.g.dart` | `$Lotties.swipeUp(...)`  |
 | `assets/three_d/empty_city.webp` | `lib/gen/three_d.g.dart` | `$ThreeD.emptyCity(...)` |
 
 The generated widget classes are private. Consumers should only use the public
 namespace methods.
+
+Different asset types can share the same folder. If `assets/icons/` contains
+`cross.svg`, `spinner.json`, and `badge.png`, dotdart generates one
+`lib/gen/icons.g.dart` file with `$Icons.cross(...)`, `$Icons.spinner(...)`,
+and `$Icons.badge(...)`. This is intentional: the namespace belongs to the
+folder, not to the asset type.
 
 ## Install
 
@@ -397,6 +404,8 @@ Generated names must be valid Dart identifiers. dotdart rejects:
 - names starting with digits;
 - Dart reserved words;
 - duplicate normalized names;
+- duplicate accessors across asset types in the same folder, such as
+  `assets/icons/box.svg` and `assets/icons/box.json`;
 - collisions with namespace helpers such as `precache`;
 - collisions between private generated widget classes.
 
