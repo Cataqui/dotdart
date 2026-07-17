@@ -1,3 +1,13 @@
+## 0.6.0
+
+- **Added `<defs>`, `<clipPath>`, and `clip-path="url(#id)"` support for SVG.**
+  SVGs with `<defs>` blocks containing `<clipPath>` definitions now parse and
+  generate correctly. The clip path geometry is emitted as a `static final Path`
+  field and applied via `canvas.clipPath()` in the generated `CustomPainter`.
+  `clip-rule` on `<clipPath>` elements is respected (evenodd / nonzero).
+  Non-existent `clip-path` references produce a build warning and are treated
+  as no-ops per the SVG spec. `<use>` and `<symbol>` remain unsupported.
+
 ## 0.5.0
 
 - **Added `maintainAspectRatio` (default `true`) to generated SVG and Lottie widgets.**
@@ -34,7 +44,7 @@
   renders a blurry thumbhash placeholder in frame 1 (before the real image
   decodes) via a shared `_dotdartImageFrameBuilder`. No flash of empty.
 - **Added `_dotdartImageFrameBuilder`** shared function + `_DotdartThumbhashDecoder`
-  + `_DotdartThumbhashPainter` emitted once per namespace file.
+  - `_DotdartThumbhashPainter` emitted once per namespace file.
 - **Added `precache` method and `cacheKey` constants** to raster namespaces
   for per-screen image memory management and coordinated cache warming.
 - **Added `image` build-time dependency** (`^4.8.0`) for pixel decoding,

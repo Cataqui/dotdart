@@ -34,6 +34,7 @@ class SvgParseResult {
 class SvgParser {
   SvgParser._();
   final List<String> _warnings = [];
+  final Map<String, SvgClipPath> _clipPaths = {};
 
   static SvgParseResult parse(String svgXml) {
     final parser = SvgParser._();
@@ -58,9 +59,16 @@ class SvgParser {
 
     final rootStyle = _resolveStyle(root, _defaultStyle);
     final children = _parseChildren(root, rootStyle);
+    _validateClipPathRefs(children);
 
     return SvgParseResult(
-      document: SvgDocument(viewBox: viewBox, width: width, height: height, children: children),
+      document: SvgDocument(
+        viewBox: viewBox,
+        width: width,
+        height: height,
+        children: children,
+        clipPaths: Map.unmodifiable(_clipPaths),
+      ),
       warnings: List.unmodifiable(_warnings),
     );
   }
@@ -113,12 +121,17 @@ class SvgParser {
         return _parsePolyline(element, inherited);
       case 'polygon':
         return _parsePolygon(element, inherited);
+      case 'defs':
+        _parseDefs(element, inherited);
+        return null;
+      case 'clipPath':
+        _parseClipPath(element, inherited);
+        return null;
       case 'linearGradient':
       case 'radialGradient':
         throw const DotdartUnsupportedFeatureException('Gradients are not supported.');
       case 'use':
       case 'symbol':
-      case 'defs':
         throw DotdartUnsupportedFeatureException(
           '<${element.tag}> references are not supported. Inline all shapes directly.',
         );
@@ -133,9 +146,8 @@ class SvgParser {
         );
       case 'filter':
       case 'mask':
-      case 'clipPath':
       case 'pattern':
-        throw const DotdartUnsupportedFeatureException('Filters, masks, clip-paths, and patterns are not supported.');
+        throw const DotdartUnsupportedFeatureException('Filters, masks, and patterns are not supported.');
       case 'title':
       case 'desc':
       case 'metadata':
@@ -269,6 +281,7 @@ class SvgParser {
       strokeLineCap: _parseLineCap(element.attrs['stroke-linecap']) ?? inherited.strokeLineCap,
       strokeLineJoin: _parseLineJoin(element.attrs['stroke-linejoin']) ?? inherited.strokeLineJoin,
       opacity: _parseOptionalOpacity(element.attrs['opacity']) ?? inherited.opacity,
+      clipPathId: _parseClipPathRef(element.attrs['clip-path']),
     );
   }
 
@@ -432,6 +445,47 @@ class SvgParser {
       if (x != null && y != null) points.add((x, y));
     }
     return points;
+  }
+
+  // ── Clip path support ──
+
+  void _parseDefs(XElement element, SvgStyle inherited) {
+    for (final child in element.children) {
+      _parseNode(child, inherited);
+    }
+  }
+
+  void _parseClipPath(XElement element, SvgStyle inherited) {
+    final id = element.attrs['id'];
+    if (id == null || id.isEmpty) {
+      throw const DotdartInvalidSvgException('<clipPath> requires a non-empty "id" attribute.');
+    }
+    final clipRule = _parseFillRule(element.attrs['clip-rule']) ?? SvgFillRule.nonzero;
+    final children = <SvgElement>[];
+    for (final child in element.children) {
+      final parsed = _parseNode(child, inherited);
+      if (parsed != null) children.add(parsed);
+    }
+    if (children.isEmpty) {
+      throw DotdartInvalidSvgException('<clipPath id="$id"> must contain at least one shape.');
+    }
+    _clipPaths[id] = SvgClipPath(id: id, children: children, clipRule: clipRule);
+  }
+
+  String? _parseClipPathRef(String? raw) {
+    if (raw == null) return null;
+    final match = RegExp(r'url\(#([^)]+)\)').firstMatch(raw.trim());
+    return match?.group(1);
+  }
+
+  void _validateClipPathRefs(List<SvgElement> elements) {
+    for (final element in elements) {
+      final ref = element.style.clipPathId;
+      if (ref != null && !_clipPaths.containsKey(ref)) {
+        _warnings.add('clip-path reference "$ref" not found; clipping will be ignored.');
+      }
+      if (element is SvgGroup) _validateClipPathRefs(element.children);
+    }
   }
 }
 

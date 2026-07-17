@@ -232,5 +232,174 @@ void main() {
 
       expect(path.style.fillColor, isNull);
     });
+
+    test('when parsing an SVG with <defs> containing a <clipPath>, it should produce one renderable child', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><g clip-path="url(#c)"><path d="M0 0L28 20" fill="black"/></g><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      expect(result.document.children, hasLength(1));
+    });
+
+    test('when parsing an SVG with <defs> containing a <clipPath>, it should produce no warnings', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><g clip-path="url(#c)"><path d="M0 0L28 20" fill="black"/></g><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      expect(result.warnings, isEmpty);
+    });
+
+    test('when parsing a <clipPath> with id, it should register it in document.clipPaths', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      expect(result.document.clipPaths.keys, contains('c'));
+    });
+
+    test('when parsing a <clipPath> with a rect, the clip path should contain one child', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      final clipPath = result.document.clipPaths['c']!;
+      expect(clipPath.children, hasLength(1));
+    });
+
+    test('when parsing a <clipPath> with a rect, the clip path child should be an SvgRect', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      final clipPath = result.document.clipPaths['c']!;
+      expect(clipPath.children.first, isA<SvgRect>());
+    });
+
+    test('when parsing a <clipPath> without an id, it should throw DotdartInvalidSvgException', () {
+      expect(
+        () => SvgParser.parse(
+          '<svg viewBox="0 0 10 10"><defs><clipPath><rect width="10" height="10"/></clipPath></defs></svg>',
+        ),
+        throwsA(isA<DotdartInvalidSvgException>()),
+      );
+    });
+
+    test('when parsing clip-path="url(#id)" on a <g>, it should store the clipPathId in style', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 28 20"><g clip-path="url(#c)"><path d="M0 0L28 20" fill="black"/></g><defs><clipPath id="c"><rect width="28" height="20"/></clipPath></defs></svg>',
+      );
+
+      final group = result.document.children.first as SvgGroup;
+      expect(group.style.clipPathId, equals('c'));
+    });
+
+    test('when parsing an empty <clipPath>, it should throw DotdartInvalidSvgException', () {
+      expect(
+        () => SvgParser.parse(
+          '<svg viewBox="0 0 10 10"><defs><clipPath id="e"/></defs></svg>',
+        ),
+        throwsA(isA<DotdartInvalidSvgException>()),
+      );
+    });
+
+    test('when parsing clip-rule="evenodd" on a <clipPath>, it should set clipRule to evenodd', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 10 10"><defs><clipPath id="c" clip-rule="evenodd"><rect width="10" height="10"/></clipPath></defs></svg>',
+      );
+
+      expect(result.document.clipPaths['c']!.clipRule, equals(SvgFillRule.evenodd));
+    });
+
+    test('when parsing clip-path referencing a non-existent id, it should add a warning', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 10 10"><g clip-path="url(#missing)"><path d="M0 0L10 10" fill="black"/></g></svg>',
+      );
+
+      expect(result.warnings, isNotEmpty);
+    });
+
+    test('when parsing clip-path referencing a non-existent id, the warning should mention the id', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 10 10"><g clip-path="url(#missing)"><path d="M0 0L10 10" fill="black"/></g></svg>',
+      );
+
+      expect(result.warnings.first, contains('missing'));
+    });
+
+    test('when parsing the wifi_exclamation.svg structure, it should produce one renderable child', () {
+      const svg = '''
+        <svg viewBox="0 0 28 20">
+          <g clip-path="url(#clip0_236_42)">
+            <path d="M1.37 7.45C0.74 6.94 0.64 6.02 1.19 5.43C7.71 -1.43 18.83 -1.67 25.57 5.4C26.13 5.99 26.03 6.91 25.4 7.42L24.87 7.84C24.25 8.35 23.33 8.24 22.76 7.67C17.52 2.41 9.1 2.57 4.01 7.69C3.44 8.26 2.53 8.37 1.9 7.87L1.37 7.45Z" fill="black"/>
+            <path d="M23.88 10.7C22.97 9.24 20.83 9.24 19.92 10.7L16.36 16.43C15.39 17.99 16.51 20 18.34 20H25.46C27.29 20 28.41 17.99 27.45 16.43L23.88 10.7Z" fill="black"/>
+          </g>
+          <defs>
+            <clipPath id="clip0_236_42">
+              <rect width="28" height="20"/>
+            </clipPath>
+          </defs>
+        </svg>
+      ''';
+
+      final result = SvgParser.parse(svg);
+
+      expect(result.document.children, hasLength(1));
+    });
+
+    test('when parsing the wifi_exclamation.svg structure, it should register the clipPath by id', () {
+      const svg = '''
+        <svg viewBox="0 0 28 20">
+          <g clip-path="url(#clip0_236_42)">
+            <path d="M1.37 7.45C0.74 6.94 0.64 6.02 1.19 5.43C7.71 -1.43 18.83 -1.67 25.57 5.4C26.13 5.99 26.03 6.91 25.4 7.42L24.87 7.84C24.25 8.35 23.33 8.24 22.76 7.67C17.52 2.41 9.1 2.57 4.01 7.69C3.44 8.26 2.53 8.37 1.9 7.87L1.37 7.45Z" fill="black"/>
+            <path d="M23.88 10.7C22.97 9.24 20.83 9.24 19.92 10.7L16.36 16.43C15.39 17.99 16.51 20 18.34 20H25.46C27.29 20 28.41 17.99 27.45 16.43L23.88 10.7Z" fill="black"/>
+          </g>
+          <defs>
+            <clipPath id="clip0_236_42">
+              <rect width="28" height="20"/>
+            </clipPath>
+          </defs>
+        </svg>
+      ''';
+
+      final result = SvgParser.parse(svg);
+
+      expect(result.document.clipPaths.keys, contains('clip0_236_42'));
+    });
+
+    test('when parsing the wifi_exclamation.svg structure, it should produce no warnings', () {
+      const svg = '''
+        <svg viewBox="0 0 28 20">
+          <g clip-path="url(#clip0_236_42)">
+            <path d="M1.37 7.45C0.74 6.94 0.64 6.02 1.19 5.43C7.71 -1.43 18.83 -1.67 25.57 5.4C26.13 5.99 26.03 6.91 25.4 7.42L24.87 7.84C24.25 8.35 23.33 8.24 22.76 7.67C17.52 2.41 9.1 2.57 4.01 7.69C3.44 8.26 2.53 8.37 1.9 7.87L1.37 7.45Z" fill="black"/>
+            <path d="M23.88 10.7C22.97 9.24 20.83 9.24 19.92 10.7L16.36 16.43C15.39 17.99 16.51 20 18.34 20H25.46C27.29 20 28.41 17.99 27.45 16.43L23.88 10.7Z" fill="black"/>
+          </g>
+          <defs>
+            <clipPath id="clip0_236_42">
+              <rect width="28" height="20"/>
+            </clipPath>
+          </defs>
+        </svg>
+      ''';
+
+      final result = SvgParser.parse(svg);
+
+      expect(result.warnings, isEmpty);
+    });
+
+    test('when parsing <defs> with a gradient inside, it should still throw', () {
+      expect(
+        () => SvgParser.parse(
+          '<svg viewBox="0 0 100 100"><defs><linearGradient id="g"><stop offset="0" stop-color="red"/></linearGradient></defs><rect fill="url(#g)" width="100" height="100"/></svg>',
+        ),
+        throwsA(isA<DotdartUnsupportedFeatureException>()),
+      );
+    });
+
+    test('when parsing <defs> with a <use> element, the <use> outside defs should still throw', () {
+      expect(
+        () => SvgParser.parse('<svg viewBox="0 0 100 100"><defs><circle id="c" r="10"/></defs><use href="#c"/></svg>'),
+        throwsA(isA<DotdartUnsupportedFeatureException>()),
+      );
+    });
   });
 }

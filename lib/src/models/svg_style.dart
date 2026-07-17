@@ -19,6 +19,7 @@ class SvgStyle {
     this.strokeLineCap = SvgStrokeLineCap.butt,
     this.strokeLineJoin = SvgStrokeLineJoin.miter,
     this.opacity = 1,
+    this.clipPathId,
   });
 
   final (double, double, double, double)? fillColor;
@@ -30,4 +31,5 @@ class SvgStyle {
   final SvgStrokeLineCap strokeLineCap;
   final SvgStrokeLineJoin strokeLineJoin;
   final double opacity;
+  final String? clipPathId;
 }

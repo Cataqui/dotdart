@@ -5,7 +5,6 @@
 import '../models/svg_document.dart';
 import '../models/svg_element.dart';
 import '../models/svg_style.dart';
-
 import 'accessor_param.dart';
 import 'naming.dart';
 
@@ -259,6 +258,17 @@ class SvgGenerator {
 
     emitGeometry(document.children);
 
+    // ── Clip path geometry emission ──
+
+    var clipIdx = 0;
+    final clipPathFieldNames = <String, String>{};
+    for (final entry in document.clipPaths.entries) {
+      final fieldName = '__clip$clipIdx';
+      clipPathFieldNames[entry.key] = fieldName;
+      _emitClipPathField(b, clipIdx, entry.value);
+      clipIdx++;
+    }
+
     // ── Paint method ──
 
     final widgetName = widgetClassName;
@@ -278,7 +288,17 @@ class SvgGenerator {
     ellipseRectIdx = 0;
     lineIdx = 0;
     polyIdx = 0;
-    _emitDrawCalls(b, document.children, colorKeyToIndex, pathIdx, rrectIdx, ellipseRectIdx, lineIdx, polyIdx);
+    _emitDrawCalls(
+      b,
+      document.children,
+      colorKeyToIndex,
+      pathIdx,
+      rrectIdx,
+      ellipseRectIdx,
+      lineIdx,
+      polyIdx,
+      clipPathFieldNames,
+    );
 
     b.writeln('    canvas.restore();');
     b.writeln('  }');
@@ -316,6 +336,7 @@ class SvgGenerator {
     int ellipseRectIdx,
     int lineIdx,
     int polyIdx,
+    Map<String, String> clipPathFieldNames,
   ) {
     var pIdx = pathIdx;
     var rIdx = rrectIdx;
@@ -325,9 +346,11 @@ class SvgGenerator {
 
     for (final element in elements) {
       switch (element) {
-        case SvgGroup(:final transform, :final children):
+        case SvgGroup(:final style, :final transform, :final children):
           final hasTransform = transform != null && transform.isNotEmpty;
-          if (hasTransform) b.writeln('    canvas.save();');
+          final clipField = clipPathFieldNames[style.clipPathId];
+          final hasClip = clipField != null;
+          if (hasTransform || hasClip) b.writeln('    canvas.save();');
           for (final op in transform ?? []) {
             switch (op) {
               case SvgTranslate(:final tx, :final ty):
@@ -344,26 +367,51 @@ class SvgGenerator {
                 }
             }
           }
-          _emitDrawCalls(b, children, colorIndex, pIdx, rIdx, eIdx, lIdx, p2Idx);
-          if (hasTransform) b.writeln('    canvas.restore();');
+          if (hasClip) {
+            b.writeln('    canvas.clipPath($clipField);');
+          }
+          _emitDrawCalls(b, children, colorIndex, pIdx, rIdx, eIdx, lIdx, p2Idx, clipPathFieldNames);
+          if (hasTransform || hasClip) b.writeln('    canvas.restore();');
         case SvgPath(:final style):
-          _emitPathDraw(b, style, pIdx, colorIndex);
+          _emitClippedDraw(b, style, () => _emitPathDraw(b, style, pIdx, colorIndex), clipPathFieldNames);
           pIdx++;
         case SvgRect(:final style, :final rx, :final ry):
-          _emitRectDraw(b, style, rIdx, colorIndex, rx > 0 || ry > 0);
+          _emitClippedDraw(
+            b,
+            style,
+            () => _emitRectDraw(b, style, rIdx, colorIndex, rx > 0 || ry > 0),
+            clipPathFieldNames,
+          );
           rIdx++;
         case SvgCircle(:final style):
         case SvgEllipse(:final style):
-          _emitEllipseDraw(b, style, eIdx, colorIndex);
+          _emitClippedDraw(b, style, () => _emitEllipseDraw(b, style, eIdx, colorIndex), clipPathFieldNames);
           eIdx++;
         case SvgLine(:final style):
-          _emitLineDraw(b, style, lIdx, colorIndex);
+          _emitClippedDraw(b, style, () => _emitLineDraw(b, style, lIdx, colorIndex), clipPathFieldNames);
           lIdx++;
         case SvgPolyline(:final style):
         case SvgPolygon(:final style):
-          _emitPolyDraw(b, style, p2Idx, colorIndex);
+          _emitClippedDraw(b, style, () => _emitPolyDraw(b, style, p2Idx, colorIndex), clipPathFieldNames);
           p2Idx++;
       }
+    }
+  }
+
+  void _emitClippedDraw(
+    StringBuffer b,
+    SvgStyle style,
+    void Function() emitDraw,
+    Map<String, String> clipPathFieldNames,
+  ) {
+    final clipField = clipPathFieldNames[style.clipPathId];
+    if (clipField != null) {
+      b.writeln('    canvas.save();');
+      b.writeln('    canvas.clipPath($clipField);');
+      emitDraw();
+      b.writeln('    canvas.restore();');
+    } else {
+      emitDraw();
     }
   }
 
@@ -500,12 +548,12 @@ class SvgGenerator {
   void _emitRectField(StringBuffer b, int idx, double x, double y, double w, double h, double rx, double ry) {
     if (rx > 0 || ry > 0) {
       b.writeln('  static final RRect _rrect$idx = RRect.fromRectAndRadius(');
-      b.writeln('    Rect.fromXYWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
+      b.writeln('    Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
       b.writeln('    const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
       b.writeln('  );');
     } else {
       b.writeln('  static final Rect _rect$idx =');
-      b.writeln('      Rect.fromXYWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)});');
+      b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)});');
     }
     b.writeln();
   }
@@ -531,6 +579,80 @@ class SvgGenerator {
     if (close) b.writeln('    ..close()');
     b.writeln('  ;');
     b.writeln();
+  }
+
+  // ── Clip path field emission ──
+
+  void _emitClipPathField(StringBuffer b, int idx, SvgClipPath clipPath) {
+    b.writeln('  static final Path __clip$idx = Path()');
+    if (clipPath.clipRule == SvgFillRule.evenodd) {
+      b.writeln('    ..fillType = PathFillType.evenOdd');
+    }
+    _emitClipPathShapes(b, clipPath.children);
+    b.writeln('  ;');
+    b.writeln();
+  }
+
+  void _emitClipPathShapes(StringBuffer b, List<SvgElement> shapes) {
+    for (final shape in shapes) {
+      switch (shape) {
+        case SvgPath(:final commands):
+          for (final cmd in commands) {
+            switch (cmd) {
+              case SvgMoveTo(:final x, :final y):
+                b.writeln('    ..moveTo(${_fmt(x)}, ${_fmt(y)})');
+              case SvgLineTo(:final x, :final y):
+                b.writeln('    ..lineTo(${_fmt(x)}, ${_fmt(y)})');
+              case SvgCubicTo(:final x1, :final y1, :final x2, :final y2, :final x, :final y):
+                b.writeln('    ..cubicTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x2)}, ${_fmt(y2)}, ${_fmt(x)}, ${_fmt(y)})');
+              case SvgQuadTo(:final x1, :final y1, :final x, :final y):
+                b.writeln('    ..quadraticBezierTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x)}, ${_fmt(y)})');
+              case SvgClosePath():
+                b.writeln('    ..close()');
+            }
+          }
+        case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
+          if (rx > 0 || ry > 0) {
+            b.writeln('    ..addRRect(RRect.fromRectAndRadius(');
+            b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}),');
+            b.writeln('      const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
+            b.writeln('    ))');
+          } else {
+            b.writeln('    ..addRect(Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}))');
+          }
+        case SvgCircle(:final cx, :final cy, :final r):
+          b.writeln(
+            '    ..addOval(Rect.fromCircle(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)}))',
+          );
+        case SvgEllipse(:final cx, :final cy, :final rx, :final ry):
+          b.writeln(
+            '    ..addOval(Rect.fromCenter(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)}))',
+          );
+        case SvgLine():
+          break;
+        case SvgPolyline(:final points):
+          for (var i = 0; i < points.length; i++) {
+            final (px, py) = points[i];
+            if (i == 0) {
+              b.writeln('    ..moveTo(${_fmt(px)}, ${_fmt(py)})');
+            } else {
+              b.writeln('    ..lineTo(${_fmt(px)}, ${_fmt(py)})');
+            }
+          }
+        case SvgPolygon(:final points):
+          for (var i = 0; i < points.length; i++) {
+            final (px, py) = points[i];
+            if (i == 0) {
+              b.writeln('    ..moveTo(${_fmt(px)}, ${_fmt(py)})');
+            } else {
+              b.writeln('    ..lineTo(${_fmt(px)}, ${_fmt(py)})');
+            }
+          }
+          b.writeln('    ..close()');
+        case SvgGroup(:final children):
+          _emitClipPathShapes(b, children);
+      }
+    }
   }
 
   // ── Format helpers ──

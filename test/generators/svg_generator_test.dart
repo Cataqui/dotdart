@@ -418,5 +418,380 @@ void main() {
 
       expect(code, contains('this.maintainAspectRatio = true'));
     });
+
+    test('when generating code with a clip path containing a rect, it should emit a static final Path __clip field', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('static final Path __clip0 = Path()'));
+    });
+
+    test('when generating code with a clip path containing a rect, it should emit addRect with the rect dimensions', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('..addRect(Rect.fromLTWH(0, 0, 28, 20))'));
+    });
+
+    test('when generating code with a clipped group, it should emit canvas.clipPath in paint()', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.clipPath(__clip0)'));
+    });
+
+    test('when generating code with a clipped group, it should emit canvas.save before the clip', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.save()'));
+    });
+
+    test('when generating code with a clipped group, it should emit canvas.restore after the clipped content', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.restore()'));
+    });
+
+    test('when generating code with a clipped group and a transform, it should emit canvas.save', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 100),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            transform: [SvgTranslate(tx: 10, ty: 20)],
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 10, y: 10)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 100, height: 100)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.save()'));
+    });
+
+    test('when generating code with a clipped group and a transform, it should emit the transform before the clip', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 100),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            transform: [SvgTranslate(tx: 10, ty: 20)],
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 10, y: 10)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 100, height: 100)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.translate(10, 20)'));
+    });
+
+    test('when generating code with a clipped group and a transform, it should emit canvas.clipPath after the transform', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 100),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            transform: [SvgTranslate(tx: 10, ty: 20)],
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 10, y: 10)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 100, height: 100)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.clipPath(__clip0)'));
+    });
+
+    test('when generating code with a clipped group and a transform, it should emit canvas.restore', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 100),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            transform: [SvgTranslate(tx: 10, ty: 20)],
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 10, y: 10)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 100, height: 100)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.restore()'));
+    });
+
+    test('when generating code with an evenodd clip-rule, it should emit PathFillType.evenOdd on the clip path', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            clipRule: SvgFillRule.evenodd,
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_evenodd.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('..fillType = PathFillType.evenOdd'));
+    });
+
+    test('when generating code with a clip-path on an individual path, it should emit canvas.save before the draw', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), clipPathId: 'c'),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_path.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.save()'));
+    });
+
+    test('when generating code with a clip-path on an individual path, it should emit canvas.clipPath before the draw', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), clipPathId: 'c'),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_path.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.clipPath(__clip0)'));
+    });
+
+    test('when generating code with a clip-path on an individual path, it should emit canvas.drawPath for the content', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), clipPathId: 'c'),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_path.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.drawPath'));
+    });
+
+    test('when generating code with a clip-path on an individual path, it should emit canvas.restore after the draw', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), clipPathId: 'c'),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_path.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('canvas.restore()'));
+    });
+
+    test('when generating code with a clip-path on a path and no fill, it should not emit draw calls', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgPath(
+            style: SvgStyle(fillColor: null, clipPathId: 'c'),
+            commands: [],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip_nofill.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, isNot(contains('canvas.drawPath')));
+    });
   });
 }

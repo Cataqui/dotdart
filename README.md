@@ -425,12 +425,13 @@ easy to theme, and safe to change.
 ## Supported SVG Features
 
 - Elements: `<path>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`,
-  `<polyline>`, `<polygon>`, and `<g>`.
+  `<polyline>`, `<polygon>`, `<g>`, `<defs>`, and `<clipPath>`.
 - Path commands: `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`, `S`/`s`,
   `Q`/`q`, `T`/`t`, and `Z`/`z`.
 - Presentation attributes: `fill`, `fill-opacity`, `fill-rule`, `stroke`,
   `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-opacity`,
-  `opacity`, and `transform`.
+  `opacity`, `transform`, and `clip-path`.
+- `clip-rule` on `<clipPath>` elements.
 - Colors: `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, named colors,
   and `none`.
 - `viewBox` with min-x/min-y offset.
@@ -444,9 +445,9 @@ be skipped with warnings.
 
 - Animated SVG with SMIL or CSS animations.
 - Gradients.
-- `<use>`, `<symbol>`, and `<defs>` references.
+- `<use>` and `<symbol>` references.
 - `<text>`, `<tspan>`, and `<image>`.
-- Filters, masks, `<clipPath>`, and `<pattern>`.
+- Filters, masks, and `<pattern>`.
 - CSS `<style>` blocks.
 - `matrix()`, `skewX()`, and `skewY()` transforms.
 - Arc path commands, `A` and `a`.
