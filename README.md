@@ -6,7 +6,7 @@
 
 Type-safe Flutter asset access, generated as optimized Dart code.
 
-dotdart compiles supported SVG, Lottie, and raster assets into strongly named
+dotdart compiles supported SVG, Lottie, images, and GIFs into strongly named
 Flutter widgets such as `$Icons.cross()`, `$Lotties.pulse()`, and
 `$Images.cataqui()`. Asset mistakes fail during generation instead of becoming
 runtime surprises.
@@ -17,7 +17,7 @@ runtime surprises.
   call site.
 - **No SVG or Lottie runtime renderer:** supported vectors and animations become
   ordinary `CustomPainter` code.
-- **Low-resource image defaults:** generated raster widgets include decode sizing,
+- **Low-resource image defaults:** generated image and GIF widgets include decode sizing,
   intrinsic metadata, a thumbhash placeholder, and sequential precaching.
 - **Build-time validation:** malformed configuration, unsupported content,
   duplicate inputs, naming collisions, and unsafe output paths fail early.
@@ -66,7 +66,7 @@ flutter:
     - assets/images/
 ```
 
-Raster files remain Flutter assets because their generated widgets use
+Images and GIFs remain Flutter assets because their generated widgets use
 `Image.asset`. SVG and Lottie inputs are compiled into Dart and do not need to
 be listed under `flutter.assets`.
 
@@ -106,10 +106,9 @@ namespace methods and do not edit generated files by hand.
 ## Documentation
 
 - [Configuration reference](https://github.com/Cataqui/dotdart/blob/main/doc/configuration.md)
-- [Supported SVG, Lottie, and raster features](https://github.com/Cataqui/dotdart/blob/main/doc/asset-support.md)
+- [Supported SVG, Lottie, image, and GIF features](https://github.com/Cataqui/dotdart/blob/main/doc/asset-support.md)
 - [Performance model](https://github.com/Cataqui/dotdart/blob/main/doc/performance.md)
 - [Troubleshooting](https://github.com/Cataqui/dotdart/blob/main/doc/troubleshooting.md)
-- [Source provenance and licenses](https://github.com/Cataqui/dotdart/blob/main/doc/source-provenance.md)
 - [Runnable example](https://github.com/Cataqui/dotdart/tree/main/example)
 
 ## Requirements

@@ -1,7 +1,7 @@
 # dotdart example
 
 This Flutter app generates and renders one SVG, one Lottie animation, and one
-raster image through dotdart's public namespace APIs.
+image through dotdart's public namespace APIs.
 
 ```bash
 fvm flutter pub get

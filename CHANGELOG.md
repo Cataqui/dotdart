@@ -28,7 +28,7 @@
 
 ## 0.4.1
 
-- Fixed raster aspect-ratio calculations for width-only and height-only sizing.
+- Fixed image and GIF aspect-ratio calculations for width-only and height-only sizing.
 - Fixed cold thumbhash placeholder decoding by preserving the complete AC coefficient payload.
 - Replaced duplicate thumbhash runtime emitters with one canonical generated source.
 - Changed namespace precaching to decode images sequentially for safer memory use on low-end devices.
@@ -37,29 +37,29 @@
 - Added path-aware malformed Lottie errors and source-path context for asset parser failures.
 - Centralized generated asset and parameter contracts across widget constructors and namespace accessors.
 - Removed blanket generated-code lint suppression and added a real build_runner consumer fixture that analyzes and renders
-  generated SVG, Lottie, static raster, portrait, landscape, animated GIF, and thumbhash output.
+  generated SVG, Lottie, static images, portrait images, landscape images, animated GIFs, and thumbhash output.
 
 ## 0.4.0
 
-- **Added image pipeline:** `image:` config key in `pubspec.yaml` for raster
-  assets (WebP, PNG, JPEG, GIF). Generates optimized `$Namespace.assetName()`
+- **Added image pipeline:** `image:` config key in `pubspec.yaml` for images and
+  GIFs (WebP, PNG, JPEG, GIF). Generates optimized `$Namespace.assetName()`
   accessors returning `Image.asset` with decode-time downsampling, embedded
   thumbhash placeholders, dominant color, and `RepaintBoundary` wrapping.
 - **Added build-time metadata embedding:** intrinsic dimensions, format,
   animated flag, dominant color, and thumbhash are probed at build time and
   emitted as `static const` fields in the generated widget — zero runtime
   dimension probing.
-- **Added thumbhash instant placeholders:** every generated raster widget
+- **Added thumbhash instant placeholders:** every generated image and GIF widget
   renders a blurry thumbhash placeholder in frame 1 (before the real image
   decodes) via a shared `_dotdartImageFrameBuilder`. No flash of empty.
 - **Added `_dotdartImageFrameBuilder`** shared function + `_DotdartThumbhashDecoder`
   - `_DotdartThumbhashPainter` emitted once per namespace file.
-- **Added `precache` method and `cacheKey` constants** to raster namespaces
+- **Added `precache` method and `cacheKey` constants** to image and GIF namespaces
   for per-screen image memory management and coordinated cache warming.
 - **Added `image` build-time dependency** (`^4.8.0`) for pixel decoding,
   dominant color extraction, and thumbhash generation. Never imported by
   generated code.
-- **Added `DotdartAssetType.raster`** to the namespace enum.
+- Added an internal image/GIF asset type to the namespace enum.
 - **Documentation:** README updated with image support section, quick-start
   example, and reframed purpose. AGENTS.md architecture tree updated.
 - **Tests:** 22 new tests across models, parsers, thumbhash encoder,

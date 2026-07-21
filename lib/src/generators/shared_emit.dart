@@ -235,7 +235,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
 
   /// The shared thumbhash decoder, painter, and image frame builder.
   ///
-  /// Emitted once per namespace file when any raster asset is present.
+  /// Emitted once per namespace file when any image or GIF is present.
   static String thumbhashCode() {
     return '''
 ${ThumbhashDecoderSource.source()}

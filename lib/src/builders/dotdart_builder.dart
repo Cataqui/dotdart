@@ -318,7 +318,7 @@ class _DotdartBuilder implements Builder {
     }
   }
 
-  /// Detects raster image formats from magic bytes.
+  /// Detects supported image and GIF formats from magic bytes.
   ///
   /// Supports WebP, PNG, JPEG, and GIF. Returns false for AVIF, HEIC, and
   /// other unsupported formats.

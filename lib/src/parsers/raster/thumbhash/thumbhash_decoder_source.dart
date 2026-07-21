@@ -1,4 +1,4 @@
-/// Emits the thumbhash decoder used in generated raster namespaces.
+/// Emits the thumbhash decoder used in generated image and GIF namespaces.
 class ThumbhashDecoderSource {
   ThumbhashDecoderSource._();
 

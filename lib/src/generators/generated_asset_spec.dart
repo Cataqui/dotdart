@@ -32,6 +32,6 @@ class GeneratedAssetSpec {
   /// Pipeline responsible for this asset.
   final DotdartAssetType assetType;
 
-  /// Flutter asset path used by generated raster precaching.
+  /// Flutter asset path used by generated image and GIF precaching.
   final String? cacheKey;
 }

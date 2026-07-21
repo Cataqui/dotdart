@@ -1,10 +1,10 @@
-/// Parses raster image bytes into a [RasterImage] model with metadata,
+/// Parses image or GIF bytes into a [RasterImage] model with metadata,
 /// dominant color, and thumbhash.
 ///
 /// Uses the `image` package (dart-lang/image) at build time only — never
 /// imported by generated code. This is justified because `dart:ui` is not
 /// available during `build_runner`, and `image` provides pure-Dart decoding
-/// for all supported raster formats (PNG, JPEG, WebP, GIF).
+/// for all supported image formats (PNG, JPEG, WebP, GIF).
 library;
 
 import 'dart:typed_data';

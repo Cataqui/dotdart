@@ -1,5 +1,5 @@
 name: dotdart_example
-description: Runnable example for dotdart-generated SVG, Lottie, and raster widgets.
+description: Runnable example for dotdart-generated SVG, Lottie, and image/GIF widgets.
 publish_to: none
 
 environment:
