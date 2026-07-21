@@ -18,3 +18,4 @@ pubspec_overrides.yaml
 .DS_Store
 .idea/
 *.iml
+.vscode/settings.json
