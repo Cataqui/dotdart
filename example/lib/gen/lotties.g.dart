@@ -275,10 +275,67 @@ class _PulsePainter extends CustomPainter {
 
   final Paint _fillPaint = Paint()..style = PaintingStyle.fill;
 
+  double _keyframes0Opacity(double frame) {
+    if (frame <= 0) return 55;
+    if (frame >= 30) return 55;
+    if (frame < 15) {
+      final t = frame / 15;
+      final eased = _transformCurve0(t);
+      return 55 + 45 * eased;
+    }
+    if (frame < 30) {
+      final t = (frame - 15) / 15;
+      final eased = _transformCurve0(t);
+      return 100 + -45 * eased;
+    }
+    return 55;
+  }
+
+  double _keyframes0ScaleX(double frame) {
+    if (frame <= 0) return 75;
+    if (frame >= 30) return 75;
+    if (frame < 15) {
+      final t = frame / 15;
+      final eased = _transformCurve0(t);
+      return 75 + 35 * eased;
+    }
+    if (frame < 30) {
+      final t = (frame - 15) / 15;
+      final eased = _transformCurve0(t);
+      return 110 + -35 * eased;
+    }
+    return 75;
+  }
+
+  double _keyframes0ScaleY(double frame) {
+    if (frame <= 0) return 75;
+    if (frame >= 30) return 75;
+    if (frame < 15) {
+      final t = frame / 15;
+      final eased = _transformCurve0(t);
+      return 75 + 35 * eased;
+    }
+    if (frame < 30) {
+      final t = (frame - 15) / 15;
+      final eased = _transformCurve0(t);
+      return 110 + -35 * eased;
+    }
+    return 75;
+  }
+
   static final RRect _rrect0_0_0 = RRect.fromRectAndRadius(
     Rect.fromCenter(center: const Offset(50, 50), width: 50, height: 50),
     const Radius.circular(8),
   );
+
+  double _curve0T = double.nan;
+  double _curve0Value = 0;
+
+  double _transformCurve0(double t) {
+    if (t == _curve0T) return _curve0Value;
+    _curve0T = t;
+    return _curve0Value = const Cubic(0.42, 0, 0.58, 1).transform(t);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -297,12 +354,19 @@ class _PulsePainter extends CustomPainter {
   }
 
   void _drawFixture0(Canvas canvas, double frame) {
-    const double layerOpacity = 1;
+    final layerOpacity = _keyframes0Opacity(frame) / 100;
     if (layerOpacity <= 0) return;
+    final scaleX = _keyframes0ScaleX(frame) / 100;
+    final scaleY = _keyframes0ScaleY(frame) / 100;
+    canvas.save();
+    canvas.translate(50, 50);
+    canvas.scale(scaleX, scaleY);
+    canvas.translate(-50, -50);
     // Group: shape
     final fillPaint0_0 = _fillPaint
       ..color = _dotdartApplyOpacity(color1, layerOpacity * 1);
     canvas.drawRRect(_rrect0_0_0, fillPaint0_0);
+    canvas.restore();
   }
 
   @override

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('dotdart generated consumer', () {
-    testWidgets('when generated vector and raster accessors render together, it should paint without errors', (
+    testWidgets('when generated vector and image accessors render together, it should paint without errors', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -29,7 +29,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('when a landscape raster receives width only, it should preserve its two-to-one aspect ratio', (
+    testWidgets('when a landscape image receives width only, it should preserve its two-to-one aspect ratio', (
       tester,
     ) async {
       await tester.pumpWidget(MaterialApp(home: $Images.landscape(width: 80)));
@@ -38,7 +38,7 @@ void main() {
       expect((image.width, image.height), equals((80, 40)));
     });
 
-    testWidgets('when a portrait raster receives height only, it should preserve its one-to-two aspect ratio', (
+    testWidgets('when a portrait image receives height only, it should preserve its one-to-two aspect ratio', (
       tester,
     ) async {
       await tester.pumpWidget(MaterialApp(home: $Images.portrait(height: 80)));

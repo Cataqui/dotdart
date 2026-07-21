@@ -35,7 +35,7 @@ class DotdartExamplePage extends StatelessWidget {
           const SizedBox(height: 16),
           _ExampleCard(label: 'Lottie compiled to CustomPainter', child: $Lotties.pulse(width: 96)),
           const SizedBox(height: 16),
-          _ExampleCard(label: 'Raster with generated metadata', child: $Images.cataqui(width: 96)),
+          _ExampleCard(label: 'Image with generated metadata', child: $Images.cataqui(width: 96)),
         ],
       ),
     );

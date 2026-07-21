@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dotdart example (selected device)",
+      "type": "dart",
+      "request": "launch",
+      "program": "${workspaceFolder}/example/lib/main.dart",
+      "cwd": "${workspaceFolder}/example",
+      "flutterMode": "debug"
+    }
+  ]
+}
