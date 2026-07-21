@@ -23,11 +23,6 @@ runtime surprises.
   duplicate inputs, naming collisions, and unsafe output paths fail early.
 - **Self-contained output:** generated libraries depend on Flutter, not dotdart.
 
-> [!NOTE]
-> dotdart intentionally supports a focused, mobile-friendly subset of SVG and
-> Lottie. Unsupported content is reported during generation instead of being
-> rendered incorrectly.
-
 ## Install
 
 Until the first pub.dev release, depend on the immutable GitHub release tag:
@@ -90,11 +85,11 @@ final image = $Images.profile(width: 160);
 
 ## Generated output
 
-| Input | Generated API | Runtime implementation |
-| --- | --- | --- |
-| `assets/icons/close.svg` | `$Icons.close(...)` | Dependency-free `CustomPainter` |
-| `assets/lotties/pulse.json` | `$Lotties.pulse(...)` | Lifecycle-aware `CustomPainter` |
-| `assets/images/profile.webp` | `$Images.profile(...)` | Optimized `Image.asset` |
+| Input                        | Generated API          | Runtime implementation          |
+| ---------------------------- | ---------------------- | ------------------------------- |
+| `assets/icons/close.svg`     | `$Icons.close(...)`    | Dependency-free `CustomPainter` |
+| `assets/lotties/pulse.json`  | `$Lotties.pulse(...)`  | Lifecycle-aware `CustomPainter` |
+| `assets/images/profile.webp` | `$Images.profile(...)` | Optimized `Image.asset`         |
 
 Assets are grouped by their parent folder. Mixed asset types in
 `assets/status/` share one `lib/gen/status.g.dart` library and one
