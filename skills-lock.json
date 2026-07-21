@@ -17,13 +17,13 @@
       "source": "dart-lang/skills",
       "sourceType": "github",
       "skillPath": "skills/dart-run-static-analysis/SKILL.md",
-      "computedHash": "e64ea092e216ecdc9b4a8b49b06d0b9a0b49f680c1116ada1d247b2de3fa6fe1"
+      "computedHash": "bb53273e041e37434ce6dbe6961039058b83582c0832a35fa182fc1a18a5d064"
     },
     "flutter-add-widget-test": {
       "source": "flutter/skills",
       "sourceType": "github",
       "skillPath": "skills/flutter-add-widget-test/SKILL.md",
-      "computedHash": "c4f263c59cfe331ef42dba2aa81e25142aa4f7284518907c6b847e04502676b0"
+      "computedHash": "348df15e60867050740ffaf8c5f94db4f7edda9cec44ce5749cebbd62f4a5b71"
     },
     "flutter-animations": {
       "source": "madteacher/mad-agents-skills",
@@ -36,7 +36,7 @@
       "source": "flutter/skills",
       "sourceType": "github",
       "skillPath": "skills/flutter-fix-layout-issues/SKILL.md",
-      "computedHash": "1aaba922c951159118f9b141788f7bb7b8167bdc0bd5c6f0738ebb90c29b9532"
+      "computedHash": "e06eb47bb2eaad56a3347e8d087f6b3eabe25ffe1d42f96ab8973257d9b96ab5"
     },
     "systematic-debugging": {
       "source": "obra/superpowers",
