@@ -34,7 +34,8 @@ class LottieGenerator {
         name: 'maintainAspectRatio',
         type: 'bool',
         defaultValue: 'true',
-        documentation: 'When true (default), keeps the native aspect ratio using the larger '
+        documentation:
+            'When true (default), keeps the native aspect ratio using the larger '
             'requested value as the reference. When false, both dimensions are applied as-is and '
             'the asset may distort.',
       ),
@@ -139,6 +140,18 @@ class LottieGenerator {
     }
 
     return curves;
+  }
+
+  bool _usesShape<T extends LottieShape>() {
+    for (final layer in animation.layers) {
+      for (final group in layer.shapeGroups) {
+        for (final item in group.items) {
+          if (item is T) return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   // ── Widget class ──
@@ -264,8 +277,12 @@ class LottieGenerator {
       b.writeln('  final Color color${color.index};');
     }
     b.writeln();
-    b.writeln('  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;');
-    b.writeln('  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;');
+    if (_usesShape<LottieFill>()) {
+      b.writeln('  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;');
+    }
+    if (_usesShape<LottieStroke>()) {
+      b.writeln('  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;');
+    }
     b.writeln();
 
     // ── Keyframe data ──

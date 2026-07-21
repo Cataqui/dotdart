@@ -197,11 +197,7 @@ void main() {
         await tester.pumpWidget(
           const Directionality(
             textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 500,
-              height: 500,
-              child: _CompileTestSvgWidget(width: 120, height: 200),
-            ),
+            child: SizedBox(width: 500, height: 500, child: _CompileTestSvgWidget(width: 120, height: 200)),
           ),
         );
 
@@ -237,11 +233,7 @@ void main() {
         await tester.pumpWidget(
           const Directionality(
             textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 500,
-              height: 500,
-              child: _CompileTestSvgWidget(width: 120),
-            ),
+            child: SizedBox(width: 500, height: 500, child: _CompileTestSvgWidget(width: 120)),
           ),
         );
 
@@ -257,11 +249,7 @@ void main() {
         await tester.pumpWidget(
           const Directionality(
             textDirection: TextDirection.ltr,
-            child: SizedBox(
-              width: 500,
-              height: 500,
-              child: _CompileTestSvgWidget(height: 200),
-            ),
+            child: SizedBox(width: 500, height: 500, child: _CompileTestSvgWidget(height: 200)),
           ),
         );
 

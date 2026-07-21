@@ -37,7 +37,7 @@ class GeneratedConsumerFixture {
     await _run(executable: flutter, arguments: const ['pub', 'get'], workingDirectory: fixtureDirectory.path);
     await _run(
       executable: dart,
-      arguments: const ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      arguments: const ['run', 'build_runner', 'build'],
       workingDirectory: fixtureDirectory.path,
     );
     final firstGeneratedSources = _generatedSourceSnapshot(fixtureDirectory);
@@ -45,7 +45,7 @@ class GeneratedConsumerFixture {
     await _run(executable: flutter, arguments: const ['test'], workingDirectory: fixtureDirectory.path);
     await _run(
       executable: dart,
-      arguments: const ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      arguments: const ['run', 'build_runner', 'build'],
       workingDirectory: fixtureDirectory.path,
     );
     final secondGeneratedSources = _generatedSourceSnapshot(fixtureDirectory);

@@ -295,9 +295,7 @@ void main() {
 
     test('when parsing an empty <clipPath>, it should throw DotdartInvalidSvgException', () {
       expect(
-        () => SvgParser.parse(
-          '<svg viewBox="0 0 10 10"><defs><clipPath id="e"/></defs></svg>',
-        ),
+        () => SvgParser.parse('<svg viewBox="0 0 10 10"><defs><clipPath id="e"/></defs></svg>'),
         throwsA(isA<DotdartInvalidSvgException>()),
       );
     });

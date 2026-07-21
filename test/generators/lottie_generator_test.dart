@@ -433,6 +433,37 @@ void main() {
 
       expect(code, allOf(contains('drawOval'), contains('strokePaint')));
     });
+
+    test('when generating code without strokes, it should omit the unused stroke paint', () {
+      const fillOnlyAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 60,
+        inPoint: 0,
+        outPoint: 60,
+        name: 'Fill Only',
+        layers: [
+          LottieLayer(
+            name: 'Fill Layer',
+            shapeGroups: [
+              LottieGroup(
+                name: 'Fill Group',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 50, height: 50, cornerRadius: 0, direction: 1),
+                  LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                  LottieGroupTransform(opacity: 100),
+                ],
+              ),
+            ],
+            opacity: LottieAnimatedScalar(animated: false, staticValue: 100),
+          ),
+        ],
+      );
+      final generator = LottieGenerator(fillOnlyAnimation, 'assets/lottie/fill_only.json');
+      final code = generator.generateWidgetClass();
+
+      expect(code, isNot(contains('final Paint _strokePaint')));
+    });
   });
 
   group('LottieGenerator path shapes', () {

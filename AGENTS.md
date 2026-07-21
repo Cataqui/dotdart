@@ -1,120 +1,170 @@
 # AGENTS.md — dotdart
 
-## Purpose
+## Mission
 
-`dotdart` is a build-time Flutter asset compiler for type-safe, optimized asset
-access. Its purpose is to turn supported SVG, Lottie, and raster image files
-into generated Dart widgets that do as little runtime work as practical when
-displayed.
+dotdart is a build-time Flutter asset compiler. It turns supported SVG, Lottie,
+and raster files into typed, optimized Dart widgets while keeping runtime work
+and memory pressure low.
 
-The package name is the product promise: the asset becomes Dart. SVG paths
-become `Path` fields, Lottie shape animations become `CustomPainter` code, and
-raster images become optimized `Image.asset` accessors with build-time metadata.
-The generated code should be easier to type-check, theme, test, and maintain
-than string-based asset paths or black-box runtime renderers.
+The package promise is literal: the asset becomes Dart. Generated libraries must
+be self-contained, analyzable, deterministic, and safe on low-end devices.
 
-Public docs and generated APIs must preserve this positioning:
+## Environment and commands
 
-- type-safe namespace access over repeated asset-path strings;
-- generated Dart widgets over runtime SVG/Lottie rendering packages;
-- low runtime memory pressure, especially for raster image decode sizing and
-  namespace precaching;
-- manipulable assets through typed parameters such as colors, progress, size,
-  and animation behavior;
-- no runtime dependency on `dotdart` after generation.
+- Flutter is pinned by `.fvmrc`. Never use an untracked global Flutter SDK.
+- Use the root `Makefile`; this repository does not use Melos.
+- Commit `pubspec.lock` whenever dependencies change.
+- Do not add a dependency unless the requested work requires it and Dart or
+  Flutter cannot provide the capability.
+
+Common commands:
+
+```bash
+make setup
+make format
+make analyze
+make test
+make example
+make check
+make pana
+make publish-dry-run
+```
+
+Never run a real pub.dev publication command unless the human explicitly asks.
 
 ## Architecture
 
-```
+```text
 lib/
-├── dotdart.dart              # Barrel — exports builder factories
+├── dotdart.dart
 └── src/
-    ├── builders/
-    │   └── dotdart_builder.dart  # build_runner Builder (PostProcessBuilder pattern)
-    ├── generators/
-    │   ├── accessor_param.dart    # Single source of truth for generated parameters
-    │   ├── generated_asset_spec.dart # Immutable asset contract used across generation
-    │   ├── image_generator.dart   # RasterImage model → optimized Image.asset widget class
-    │   ├── naming.dart            # Naming helpers (widgetClassName, accessorName, namespaceNameFromFolder)
-    │   ├── namespace_assembler.dart # Combines widget fragments into per-folder namespace files
-    │   ├── shared_emit.dart       # Shared mixin/helper source emission (SVG sizing, Lottie lifecycle, opacity, thumbhash)
-    │   ├── lottie_generator.dart  # Lottie model → widget-class fragment
-    │   └── svg_generator.dart     # SvgDocument → widget-class fragment
-    ├── models/
-    │   ├── raster_image.dart      # Raster image metadata (dims, format, thumbhash, dominant color)
-    │   ├── raster_image_enums.dart # RasterImageFormat enum (part)
-    │   ├── lottie_animation.dart  # Top-level Lottie model
-    │   ├── lottie_layer.dart     # Layer model
-    │   ├── lottie_shape.dart     # Shape model (sealed class)
-    │   ├── lottie_keyframe.dart  # Keyframe model
-    │   ├── svg_document.dart     # SVG document model (viewBox, root elements)
-    │   ├── svg_element.dart      # SVG element model (path/rect/circle/group, etc.)
-    │   └── svg_style.dart        # Resolved SVG presentation attributes
-    └── parsers/
-        ├── lottie_parser.dart    # JSON → LottieAnimation
-        ├── raster/
-        │   ├── raster_parser.dart # Image bytes (via `image` pkg) → RasterImage
-        │   └── thumbhash.dart     # Thumbhash encoder + decoder source emitter
-        └── svg/
-            ├── svg_parser.dart       # XML → SvgDocument (orchestrates the below)
-            ├── svg_mini_xml.dart     # Minimal XML parser (no external dependency)
-            ├── svg_path_data.dart    # SVG path d attribute parser
-            └── svg_transform.dart    # SVG transform attribute parser
+    ├── builders/    # config, discovery, manifests, package roots, output safety
+    ├── generators/  # SVG, Lottie, raster, namespaces, shared source emission
+    ├── models/      # parsed immutable asset models
+    └── parsers/     # Lottie JSON, raster metadata/thumbhash, minimal SVG
 ```
 
-## Key Design Decisions
+The public library exports only `dotdartBuilder` and
+`dotdartPostProcessBuilder`. These two builder factories are the deliberate
+exception to the no-top-level-functions rule because `build.yaml` must name
+top-level factories.
 
-- **Namespace-grouped output**: Assets are grouped by their source folder. Each folder produces one flat `<folder>.g.dart` file (e.g. `lib/gen/icons.g.dart`) containing an `abstract final class $FolderName` with one static method per asset. Widget class names are PascalCase but library-private (prefixed with `_`); consumers use the accessor methods which return `Widget`.
-- **Self-contained output**: Generated `.g.dart` files only import `dart:math` and Flutter SDK libraries. No `dotdart` import in generated code.
-- **Shared mixins**: Each generated file deduplicates common logic into file-level mixins (`_DotdartSvgSizing`, `_DotdartLottieAnimationState<T>`) and a shared `_dotdartApplyOpacity` function. Generators emit only the asset-specific fields, getters, and `buildPainter()` override.
-- **Low-resource raster defaults**: Raster accessors use build-time dimensions,
-  aspect ratio, dominant color, thumbhash, decode-cache sizing, and sequential
-  precaching so callers get efficient image behavior without remembering manual
-  per-call optimizations.
-- **Manipulable generated vectors**: SVG and Lottie pipelines expose supported
-  colors, sizing, progress, and animation controls as typed parameters instead
-  of forcing source-file edits or runtime renderer configuration.
-- **Fail fast on unsupported features**: Parser throws `DotdartUnsupportedFeatureException` with a clear message.
-- **Config**: Type-keyed folders/files under `dotdart:` in `pubspec.yaml`. Each key (e.g. `lottie:`, `svg:`) represents an asset type.
-- **Content-based detection**: Each asset type is validated by inspecting file content, not extension alone.
-- **PostProcessBuilder pattern**: Like `flutter_gen_runner`, the normal builder writes a manifest and a post-process builder materializes files to the configured output directory.
-- **Stale file cleanup**: The post-process builder deletes only stale files carrying dotdart's exact ownership header. Shared output directories must preserve files from other generators.
-- **Accessor naming**: Asset filenames are converted to lowerCamelCase accessor names (`arrow_left.svg` → `arrowLeft`). Namespace names are PascalCase from the folder name (`icons` → `Icons` → `$Icons`). Widget class names are PascalCase from the filename (`arrow_left.svg` → `ArrowLeft`).
+Everything else under `lib/src` is implementation detail.
 
-## Documentation Rules
+## Invariants
 
-- Describe dotdart as type-safe, optimized Flutter asset access generated as
-  Dart code.
-- Keep the README consumer-first and pub.dev-friendly: start with what users get
-  and why it is better than string paths or runtime renderers before explaining
-  internals.
-- Do not claim complete SVG or Lottie support. Be explicit that dotdart compiles
-  a focused, mobile-friendly subset and fails fast for unsupported content.
-- Do not expose raw cache keys as public API. Prefer generated behavior that is
-  hard to misuse, such as namespace-level `precache(BuildContext)`.
-- Keep low-end device behavior visible in docs whenever raster decoding,
-  precaching, animation repainting, or runtime dependencies change.
+- Assets are grouped by source folder into one flat namespace library.
+- Generated widget classes are private; public namespace methods return
+  `Widget`.
+- Generated files may import Dart and Flutter SDK libraries, never dotdart or a
+  runtime SVG/Lottie renderer.
+- Package roots come from `.dart_tool/package_config.json` and are validated
+  against the consuming `pubspec.yaml`. Never fall back to
+  `Directory.current`.
+- Post-processing deletes only files with dotdart's exact ownership header.
+  Preserve files owned by other generators and reject traversal or symlink
+  escapes.
+- Generated SVG/Lottie sizing must remain finite inside unbounded layouts.
+  `OverflowBoxFit.deferToChild` and its explicit rendering import are regression
+  contracts.
+- Raster decoding follows requested display size. Namespace precaching remains
+  sequential to avoid memory spikes.
 
-## Adding a New Asset Type
+## Dart style
 
-1. Create a parser in `lib/src/parsers/<type>/` (e.g. `svg/svg_parser.dart`, `raster/raster_parser.dart`)
-2. Create a generator in `lib/src/generators/` (e.g. `svg_generator.dart`, `image_generator.dart`).
-   The generator must expose:
-   - `generateWidgetClass()` → returns widget + painter source (no header/imports, unformatted)
-   - `params` getter → returns `List<AccessorParam>` describing constructor parameters
-   - `widgetClassName` → private PascalCase class name (prefixed with `_`) from the source path
-3. Add the asset type to `DotdartAssetType`, including its configuration key, extensions, and documentation extension.
-4. Add its parse/generate branch to the exhaustive asset-pipeline switch in `dotdart_builder.dart`.
-5. If shared mixins/helpers are needed, add emission logic to `shared_emit.dart`
-6. Route parsed models to the appropriate generator in the builder's `build` method.
-   The builder automatically groups assets by parent folder and passes them to `NamespaceAssembler`.
-7. Every namespace accessor returns `Widget`, including raster accessors. Raster
-   namespaces additionally expose sequential `precache(BuildContext)` helpers.
+- Prefer explicit, boring, readable code.
+- Avoid `dynamic`; narrow unknown JSON immediately.
+- Use named parameters when a function or constructor accepts more than one
+  primitive input.
+- Keep models immutable.
+- Put enums in an owner-specific `*_enums.dart` part file. Put behavior driven
+  only by an enum value on the enum.
+- Exhaustively list every enum member in switches. Do not use `default` or
+  wildcard clauses over enums.
+- Keep reusable public callback types in an owner-specific `*_types.dart` file;
+  inline signatures used only once.
+- Keep at most one implementation class per source file, except a
+  `StatefulWidget` and its private `State`.
+- Do not add free-standing helpers. Use an owning class method.
+- Inline single-use values. Extract linked layout values so every consumer uses
+  the same constant.
+- Prefer guard clauses and early returns over nested `if/else` chains.
+- Every exported declaration requires consumer-focused Dartdoc.
+
+## Generated source
+
+The generators produce public consumer code, so generated output has the same
+quality bar as handwritten source:
+
+- deterministic ordering and formatting;
+- complete Dartdoc for public namespace APIs;
+- no blanket lint suppression;
+- no hidden runtime dependency;
+- actionable source paths in failures;
+- exhaustive tests for constructor/accessor parameter parity.
+
+Never patch generated consumer files to fix a generator defect. Reproduce the
+issue in dotdart, fix the parser/generator contract, and regenerate consumers.
 
 ## Testing
 
-- Parser tests: feed known input → verify parsed model
-- Generator tests: feed model → verify generated code string
-- Widget tests: render generated widget in test harness
-- Consumer fixture: run real build_runner, analyze the generated libraries, and
-  pump every supported asset type through its public namespace accessor
+- Every bug fix requires a regression test that fails before the fix when
+  practical.
+- Test descriptions use: `when <condition/action>, it should <result>`.
+- Each test block contains exactly one assertion call.
+- A source file's tests live in the matching dedicated test file.
+- Prefer `pumpAndSettle` immediately after `pumpWidget`; use `pump` only for
+  deliberate intermediate or infinite states.
+- Parser tests verify models and failures.
+- Generator tests verify emitted source and documentation.
+- Widget tests compile and render representative generated output.
+- The consumer fixture runs real build_runner, analyzes generated libraries, and
+  renders every asset type.
+
+Run focused tests while iterating, then `make check` before handoff.
+
+## Debugging
+
+Do not guess at generator failures. Reproduce them with a minimal,
+redistributable asset and capture the relevant build log or stack trace before
+changing production code. If an attempted fix does not resolve the failure,
+revert that attempt before trying another approach.
+
+Distinguish source failures from environment failures such as unwritable FVM
+caches or unavailable networks.
+
+## Performance
+
+Every change must remain appropriate for 2–4 GB devices and older mobile CPUs.
+Parsing and metadata work belong at build time. Avoid runtime XML/JSON parsing,
+eager image decoding, concurrent image warming, unnecessary allocations in
+`paint`, and `saveLayer` without measured justification.
+
+A passing code suite does not prove on-device frame performance or perceptual
+quality. Report those gates separately when a change affects rendering cost.
+
+## Documentation and releases
+
+- Keep README content consumer-first and move maintainer detail into
+  `CONTRIBUTING.md`, `doc/`, or this file.
+- Describe the supported format subset precisely; never claim complete SVG or
+  Lottie compatibility.
+- Follow semantic versioning. Before 1.0, document breaking minor releases with
+  migration guidance.
+- Update README, docs, example, changelog, and `pubspec.yaml` together when a
+  public behavior changes.
+- Inspect the publication archive and require zero dry-run warnings.
+- Release tags are immutable and must match the pubspec version.
+
+## Pull requests
+
+Use Conventional Commits. Include tests, changelog entries for user-visible
+changes, and regenerated example output when applicable. Required CI must pass
+before merge; never force-push or delete a release tag.
+
+## Security
+
+Never commit credentials, publisher tokens, private assets, or sensitive local
+paths. Treat asset parsers and output paths as untrusted-input boundaries.
+Reject traversal, unsafe symlinks, invalid identifiers, and ambiguous ownership
+instead of attempting recovery.

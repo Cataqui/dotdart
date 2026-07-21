@@ -1,5 +1,7 @@
 ## 0.6.0
 
+- Extracted dotdart into its own public repository with standalone FVM,
+  Makefile, CI, package documentation, and a runnable three-pipeline example.
 - **Added `<defs>`, `<clipPath>`, and `clip-path="url(#id)"` support for SVG.**
   SVGs with `<defs>` blocks containing `<clipPath>` definitions now parse and
   generate correctly. The clip path geometry is emitted as a `static final Path`
@@ -7,6 +9,9 @@
   `clip-rule` on `<clipPath>` elements is respected (evenodd / nonzero).
   Non-existent `clip-path` references produce a build warning and are treated
   as no-ops per the SVG spec. `<use>` and `<symbol>` remain unsupported.
+- Omit unused reusable paint fields from generated Lottie painters so
+  fill-only and stroke-only animations remain warning-free under strict
+  analysis.
 
 ## 0.5.0
 

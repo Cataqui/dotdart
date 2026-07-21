@@ -1,1 +1,14 @@
+.dart_tool/
+.fvm/
+.agents/
+.github/
 AGENTS.md
+build/
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+Makefile
+SECURITY.md
+coverage/
+doc/api/
+pubspec_overrides.yaml
+skills-lock.json

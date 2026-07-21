@@ -1,0 +1,73 @@
+name: Bug report
+description: Report reproducible incorrect generation or runtime behavior.
+title: "fix: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach proprietary assets. Reduce the problem to a minimal asset
+        that may be redistributed in this public repository.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe the user-visible or generated-code failure.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the dotdart config, source asset, command, and error output.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: dotdart-version
+    attributes:
+      label: dotdart version
+      placeholder: 0.6.0
+    validations:
+      required: true
+  - type: input
+    id: flutter-version
+    attributes:
+      label: Flutter and Dart versions
+      placeholder: Flutter 3.44.0, Dart 3.12.0
+    validations:
+      required: true
+  - type: input
+    id: build-runner-version
+    attributes:
+      label: build_runner version
+      placeholder: 2.15.0
+    validations:
+      required: true
+  - type: dropdown
+    id: asset-type
+    attributes:
+      label: Asset type
+      options:
+        - SVG
+        - Lottie
+        - Raster image
+        - Configuration or output ownership
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: The attached fixture may be redistributed under this repository's MIT license.
+          required: true

@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a focused asset format or generated API improvement.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What real consumer problem cannot be solved today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest public behavior that solves the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: asset
+    attributes:
+      label: Representative asset or format reference
+      description: Link a public specification or attach a redistributable minimal fixture.
+    validations:
+      required: true
+  - type: textarea
+    id: performance
+    attributes:
+      label: Runtime and low-resource impact
+      description: Explain expected generated size, allocations, painting, or decode implications.
+    validations:
+      required: true
