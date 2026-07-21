@@ -41,4 +41,6 @@ than Melos.
 Use Conventional Commits, keep each pull request focused, and complete the pull
 request checklist. CI runs locked, minimum-dependency, and cross-platform gates.
 
+Release owners should follow the [release checklist](RELEASE_CHECKLIST.md).
+
 By participating, you agree to follow the code of conduct.
