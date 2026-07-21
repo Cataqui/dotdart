@@ -7,6 +7,7 @@
 // Generated canvas and paint sequences intentionally use repeated receiver calls.
 // ignore_for_file: cascade_invocations, unused_element, unused_element_parameter
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
@@ -43,7 +44,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
 
   void _syncController() {
     if (_shouldAnimate()) {
-      if (!_controller.isAnimating) _controller.repeat();
+      if (!_controller.isAnimating) unawaited(_controller.repeat());
       return;
     }
     _controller.stop();
