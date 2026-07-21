@@ -14,6 +14,8 @@
   analysis.
 - Raise the minimum `glob` version to `2.1.3` so minimum-dependency test
   resolutions use a Dart 3-compatible `package:file` implementation.
+- Use the Flutter SDK batch launchers in generated-consumer integration tests
+  so the full suite runs on Windows as well as macOS and Linux.
 
 ## 0.5.0
 
