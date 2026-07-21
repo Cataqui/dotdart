@@ -58,6 +58,9 @@ class NamespaceAssembler {
 
   void _writeImports(StringBuffer b) {
     final types = assets.map((asset) => asset.assetType).toSet();
+    if (types.contains(DotdartAssetType.lottie)) {
+      b.writeln("import 'dart:async';");
+    }
     b.writeln("import 'dart:math' as math;");
     b.writeln("import 'package:flutter/material.dart';");
     if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {

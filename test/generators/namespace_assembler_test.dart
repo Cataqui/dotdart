@@ -204,6 +204,13 @@ void main() {
       expect(code, contains('mixin _DotdartLottieAnimationState<T extends StatefulWidget>'));
     });
 
+    test('when assembling Lottie assets, it should explicitly discard the animation repeat future', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
+      final code = assembler.assemble();
+
+      expect(code, allOf(contains("import 'dart:async';"), contains('unawaited(_controller.repeat());')));
+    });
+
     test('when assembling Lottie assets, it should not emit the SVG sizing mixin', () {
       final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();

@@ -135,7 +135,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
 
   void _syncController() {
     if (_shouldAnimate()) {
-      if (!_controller.isAnimating) _controller.repeat();
+      if (!_controller.isAnimating) unawaited(_controller.repeat());
       return;
     }
     _controller.stop();

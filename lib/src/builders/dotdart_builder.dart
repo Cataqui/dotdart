@@ -379,7 +379,7 @@ class _DotdartBuilder implements Builder {
       AssetId(buildStep.inputId.package, _manifestExtension),
       jsonEncode({
         'schema_version': 2,
-        if (packageRoot != null) 'package_root': packageRoot,
+        'package_root': ?packageRoot,
         'outputs': [
           for (final o in outputs) {'path': o.path, 'contents': o.contents},
         ],
