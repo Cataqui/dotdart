@@ -135,7 +135,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
 
   void _syncController() {
     if (_shouldAnimate()) {
-      if (!_controller.isAnimating) _controller.repeat();
+      if (!_controller.isAnimating) unawaited(_controller.repeat());
       return;
     }
     _controller.stop();
@@ -235,7 +235,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
 
   /// The shared thumbhash decoder, painter, and image frame builder.
   ///
-  /// Emitted once per namespace file when any raster asset is present.
+  /// Emitted once per namespace file when any image or GIF is present.
   static String thumbhashCode() {
     return '''
 ${ThumbhashDecoderSource.source()}

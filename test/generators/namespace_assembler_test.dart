@@ -204,6 +204,13 @@ void main() {
       expect(code, contains('mixin _DotdartLottieAnimationState<T extends StatefulWidget>'));
     });
 
+    test('when assembling Lottie assets, it should explicitly discard the animation repeat future', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
+      final code = assembler.assemble();
+
+      expect(code, allOf(contains("import 'dart:async';"), contains('unawaited(_controller.repeat());')));
+    });
+
     test('when assembling Lottie assets, it should not emit the SVG sizing mixin', () {
       final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();
@@ -222,7 +229,7 @@ void main() {
       expect(code, allOf(contains('_DotdartSvgSizing'), contains('_DotdartLottieAnimationState')));
     });
 
-    test('when assembling mixed SVG, Lottie, and raster assets, it should emit every required shared helper', () {
+    test('when assembling mixed SVG, Lottie, and image assets, it should emit every required shared helper', () {
       final assembler = NamespaceAssembler(
         namespaceName: 'Icons',
         folderSegment: 'icons',
@@ -255,7 +262,7 @@ void main() {
       expect(code, contains('cross.svg'));
     });
 
-    test('when assembling raster assets, it should expose precache without public cache keys', () {
+    test('when assembling image assets, it should expose precache without public cache keys', () {
       final assembler = NamespaceAssembler(namespaceName: 'Images', folderSegment: 'images', assets: [rasterAsset]);
       final code = assembler.assemble();
 

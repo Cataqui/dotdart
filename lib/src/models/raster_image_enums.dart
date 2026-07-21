@@ -1,6 +1,6 @@
 part of 'raster_image.dart';
 
-/// The encoded format of a raster image asset.
+/// The encoded format of an image or GIF.
 enum RasterImageFormat {
   /// WebP (lossy or lossless, may be animated).
   webp,

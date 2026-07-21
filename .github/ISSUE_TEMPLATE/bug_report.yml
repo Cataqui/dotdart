@@ -13,7 +13,7 @@ body:
     id: behavior
     attributes:
       label: What happened?
-      description: Describe the user-visible or generated-code failure.
+      description: Describe the visible or generated-code failure.
     validations:
       required: true
   - type: textarea

@@ -1,6 +1,6 @@
 ## Summary
 
-Describe the consumer problem and the resulting behavior.
+Describe the problem and the resulting behavior.
 
 ## Verification
 

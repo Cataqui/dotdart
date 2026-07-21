@@ -4,6 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 void main() {
+  test('when resolving an SDK command on Windows, it should use the batch launcher', () {
+    expect(
+      GeneratedConsumerFixture._sdkExecutablePath(flutterRoot: 'C:/flutter', command: 'flutter', isWindows: true),
+      'C:/flutter/bin/flutter.bat',
+    );
+  });
+
   test(
     'when a consumer generates every supported asset type, it should analyze and render the real generated output',
     () async {
@@ -20,6 +27,11 @@ class GeneratedConsumerFixture {
 
   final Directory packageRoot;
 
+  static String _sdkExecutablePath({required String flutterRoot, required String command, required bool isWindows}) {
+    final extension = isWindows ? '.bat' : '';
+    return '$flutterRoot/bin/$command$extension';
+  }
+
   Future<bool> verify() async {
     final fixtureDirectory = Directory('${packageRoot.path}/build/generated_consumer_fixture');
     if (fixtureDirectory.existsSync()) fixtureDirectory.deleteSync(recursive: true);
@@ -32,8 +44,8 @@ class GeneratedConsumerFixture {
     if (flutterRoot == null) {
       throw StateError('FLUTTER_ROOT is required for the generated consumer fixture.');
     }
-    final flutter = '$flutterRoot/bin/flutter';
-    final dart = '$flutterRoot/bin/dart';
+    final flutter = _sdkExecutablePath(flutterRoot: flutterRoot, command: 'flutter', isWindows: Platform.isWindows);
+    final dart = _sdkExecutablePath(flutterRoot: flutterRoot, command: 'dart', isWindows: Platform.isWindows);
     await _run(executable: flutter, arguments: const ['pub', 'get'], workingDirectory: fixtureDirectory.path);
     await _run(
       executable: dart,

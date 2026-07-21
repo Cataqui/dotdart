@@ -3,7 +3,7 @@
 ## Mission
 
 dotdart is a build-time Flutter asset compiler. It turns supported SVG, Lottie,
-and raster files into typed, optimized Dart widgets while keeping runtime work
+images, and GIFs into typed, optimized Dart widgets while keeping runtime work
 and memory pressure low.
 
 The package promise is literal: the asset becomes Dart. Generated libraries must
@@ -39,9 +39,9 @@ lib/
 ├── dotdart.dart
 └── src/
     ├── builders/    # config, discovery, manifests, package roots, output safety
-    ├── generators/  # SVG, Lottie, raster, namespaces, shared source emission
+    ├── generators/  # SVG, Lottie, image/GIF, namespaces, shared source emission
     ├── models/      # parsed immutable asset models
-    └── parsers/     # Lottie JSON, raster metadata/thumbhash, minimal SVG
+    └── parsers/     # Lottie JSON, image/GIF metadata/thumbhash, minimal SVG
 ```
 
 The public library exports only `dotdartBuilder` and
@@ -67,7 +67,7 @@ Everything else under `lib/src` is implementation detail.
 - Generated SVG/Lottie sizing must remain finite inside unbounded layouts.
   `OverflowBoxFit.deferToChild` and its explicit rendering import are regression
   contracts.
-- Raster decoding follows requested display size. Namespace precaching remains
+- Image and GIF decoding follows requested display size. Namespace precaching remains
   sequential to avoid memory spikes.
 
 ## Dart style
@@ -145,8 +145,19 @@ quality. Report those gates separately when a change affects rendering cost.
 
 ## Documentation and releases
 
-- Keep README content consumer-first and move maintainer detail into
-  `CONTRIBUTING.md`, `doc/`, or this file.
+- Keep README and `doc/` content consumer-first. Move maintainer detail into
+  `CONTRIBUTING.md` or this file, never into `doc/`.
+- Follow `RELEASE_CHECKLIST.md` for every release. Do not skip or silently infer
+  a completed gate.
+- Use plain language familiar to Flutter developers in every consumer-facing
+  surface, including public APIs, documentation, examples, changelogs,
+  generated Dartdoc, configuration guidance, warnings, and errors. Prefer the
+  term a package user already knows, and explain unavoidable specialist
+  terminology when it first appears.
+- Say "images and GIFs" or name the supported formats (PNG, JPEG, WebP, and
+  GIF). Never use "raster" as a consumer-facing synonym for them. Established
+  internal identifiers may retain `raster` when renaming them would obscure the
+  implementation or create needless churn.
 - Describe the supported format subset precisely; never claim complete SVG or
   Lottie compatibility.
 - Follow semantic versioning. Before 1.0, document breaking minor releases with

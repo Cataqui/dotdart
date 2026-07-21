@@ -10,9 +10,9 @@ Confirm that:
 4. The import matches the source folder, for example
    `assets/icons/` becomes `lib/gen/icons.g.dart`.
 
-## A raster widget is empty
+## An image or GIF widget is empty
 
-Raster files must be registered under Flutter's `assets` section in addition
+Images and GIFs must be registered under Flutter's `assets` section in addition
 to dotdart's `image` section.
 
 ## An accessor name is unexpected

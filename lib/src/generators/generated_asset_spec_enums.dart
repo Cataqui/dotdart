@@ -8,7 +8,7 @@ enum DotdartAssetType {
   /// An animated Lottie widget.
   lottie,
 
-  /// A raster image widget.
+  /// An image or GIF widget.
   raster;
 
   /// Configuration key in `pubspec.yaml`.

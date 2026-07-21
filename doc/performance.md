@@ -13,17 +13,10 @@ application does less work while rendering.
 - Explicitly sized widgets remain finite inside unbounded parents such as
   `Column`.
 
-## Raster images
+## Images and GIFs
 
 - Intrinsic dimensions and dominant color are computed during generation.
 - Decode cache dimensions follow the requested display size.
 - Thumbhash placeholders are available on the first frame.
 - Namespace precaching is sequential to avoid concurrent decode spikes.
 - Generated images use repaint boundaries to isolate expensive repaints.
-
-## Performance changes
-
-Changes to parsing or emitted code must be tested at the generator and rendered
-widget levels. Do not introduce `saveLayer`, eager image decoding, concurrent
-namespace precaching, or a runtime renderer dependency without measured evidence
-that the change remains suitable for 2–4 GB devices.

@@ -1,6 +1,6 @@
 part 'raster_image_enums.dart';
 
-/// Parsed metadata of a raster image asset ready for code generation.
+/// Parsed metadata of an image or GIF ready for code generation.
 class RasterImage {
   const RasterImage({
     required this.intrinsicWidth,

@@ -17,12 +17,12 @@ dotdart:
 
 ## Keys
 
-| Key | Required | Meaning |
-| --- | --- | --- |
-| `output` | No | Package-relative destination. Defaults to `lib/gen/`. |
-| `svg` | No | SVG files or directories to compile. |
-| `lottie` | No | Lottie JSON files or directories to compile. |
-| `image` | No | PNG, JPEG, WebP, or GIF files or directories to inspect. |
+| Key      | Required | Meaning                                                  |
+| -------- | -------- | -------------------------------------------------------- |
+| `output` | No       | Package-relative destination. Defaults to `lib/gen/`.    |
+| `svg`    | No       | SVG files or directories to compile.                     |
+| `lottie` | No       | Lottie JSON files or directories to compile.             |
+| `image`  | No       | PNG, JPEG, WebP, or GIF files or directories to inspect. |
 
 At least one asset type must be configured. Unknown keys and values that are not
 lists are rejected.
@@ -42,18 +42,18 @@ Each source folder produces one `<folder>.g.dart` file. Filenames become
 lower-camel-case accessor names, while folder names become PascalCase
 namespaces:
 
-| Source | Output | Accessor |
-| --- | --- | --- |
-| `assets/icons/arrow_left.svg` | `lib/gen/icons.g.dart` | `$Icons.arrowLeft()` |
-| `assets/three_d/empty.webp` | `lib/gen/three_d.g.dart` | `$ThreeD.empty()` |
+| Source                        | Output                   | Accessor             |
+| ----------------------------- | ------------------------ | -------------------- |
+| `assets/icons/arrow_left.svg` | `lib/gen/icons.g.dart`   | `$Icons.arrowLeft()` |
+| `assets/three_d/empty.webp`   | `lib/gen/three_d.g.dart` | `$ThreeD.empty()`    |
 
 Identifier collisions, reserved words, and two assets that normalize to the same
 name stop generation with an actionable error.
 
-## Raster registration
+## Image and GIF registration
 
-Raster widgets still load their original files at runtime. Register every raster
-input with Flutter:
+Image and GIF widgets still load their original files at runtime. Register every
+image and GIF input with Flutter:
 
 ```yaml
 dotdart:
@@ -64,10 +64,3 @@ flutter:
   assets:
     - assets/images/
 ```
-
-## Workspace builds
-
-dotdart resolves the active consuming package through
-`.dart_tool/package_config.json`. It supports normal package builds and
-`build_runner build --workspace`; generation never falls back to the process
-working directory.
