@@ -44,7 +44,7 @@ Not supported:
 Unsupported layer and shape types that can be skipped safely produce build
 warnings. Features that would change rendering semantics fail generation.
 
-## Raster images
+## Images and GIFs
 
 Supported formats are PNG, JPEG, WebP, and GIF. Generated metadata includes
 intrinsic dimensions, aspect ratio, animation status, dominant color, and a
