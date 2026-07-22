@@ -1,3 +1,14 @@
+## 0.6.1
+
+- Improved consumer documentation and package guidance for supported images and
+  GIFs.
+- Added complete Flutter platform runners to the example and an animated Lottie
+  fixture with deterministic regression coverage.
+- Updated generated Lottie animation startup for strict analysis with
+  `very_good_analysis` 10.x.
+- Added the release checklist and tag-triggered trusted-publishing workflow for
+  future releases.
+
 ## 0.6.0
 
 - Extracted dotdart into its own public repository with standalone FVM,
