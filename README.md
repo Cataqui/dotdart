@@ -25,18 +25,7 @@ runtime surprises.
 
 ## Install
 
-Until the first pub.dev release, depend on the immutable GitHub release tag:
-
-```yaml
-dev_dependencies:
-  build_runner: ^2.15.0
-  dotdart:
-    git:
-      url: https://github.com/Cataqui/dotdart.git
-      ref: v0.6.0
-```
-
-After dotdart is published, the Git dependency can be replaced with:
+Add dotdart and build_runner as development dependencies:
 
 ```bash
 flutter pub add --dev dotdart build_runner

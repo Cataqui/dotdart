@@ -1,6 +1,6 @@
 name: dotdart
 description: Type-safe Flutter asset access that compiles SVG, Lottie, and images into optimized Dart widgets.
-version: 0.6.0
+version: 0.6.1
 homepage: https://github.com/Cataqui/dotdart
 repository: https://github.com/Cataqui/dotdart
 issue_tracker: https://github.com/Cataqui/dotdart/issues
