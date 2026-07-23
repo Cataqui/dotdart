@@ -1,3 +1,9 @@
+## 0.6.2
+
+- Stopped committing the package lockfile so dependency-range compatibility is
+  validated while keeping the example application reproducible.
+- Made CI run the pinned Dart and Flutter release commands directly.
+
 ## 0.6.1
 
 - Improved consumer documentation and package guidance for supported images and

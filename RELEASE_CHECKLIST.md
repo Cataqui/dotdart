@@ -11,7 +11,9 @@ versioning and uses immutable `v<version>` Git tags.
 - [ ] Add migration guidance for every breaking change.
 - [ ] Update consumer documentation and the example for public behavior changes.
 - [ ] Regenerate and commit example output when generator output changes.
-- [ ] Confirm `pubspec.lock` is committed when dependencies change.
+- [ ] Confirm the root `pubspec.lock` is untracked and ignored.
+- [ ] Confirm `example/pubspec.lock` is committed and synchronized with the
+      release version.
 
 ## Audit source and dependencies
 
