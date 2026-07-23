@@ -12,8 +12,12 @@ be self-contained, analyzable, deterministic, and safe on low-end devices.
 ## Environment and commands
 
 - Flutter is pinned by `.fvmrc`. Never use an untracked global Flutter SDK.
-- Use the root `Makefile`; this repository does not use Melos.
-- Commit `pubspec.lock` whenever dependencies change.
+- Use the root `Makefile` for local development; this repository does not use
+  Melos. GitHub Actions workflows must run the underlying FVM, Dart, and Flutter
+  commands directly and must not invoke `make`.
+- Do not commit the root `pubspec.lock`; dotdart is a reusable package and must
+  validate against its declared dependency ranges. Commit
+  `example/pubspec.lock` whenever the example's resolution changes.
 - Do not add a dependency unless the requested work requires it and Dart or
   Flutter cannot provide the capability.
 

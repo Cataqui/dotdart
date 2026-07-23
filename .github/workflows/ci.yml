@@ -23,11 +23,31 @@ jobs:
           cache: true
       - name: Install FVM
         run: dart pub global activate fvm
-      - name: Run release gates
+      - name: Install dependencies
         run: |
-          make setup
-          make check
-          make pana
+          fvm install
+          fvm flutter pub get
+          cd example
+          fvm flutter pub get --enforce-lockfile
+      - name: Check formatting
+        run: fvm dart format --line-length 120 --output none --set-exit-if-changed lib test example/lib/main.dart
+      - name: Analyze package
+        run: fvm flutter analyze --fatal-infos
+      - name: Run tests
+        run: fvm flutter test
+      - name: Validate API documentation
+        run: fvm dart doc --validate-links
+      - name: Generate and analyze example
+        run: |
+          cd example
+          fvm dart run build_runner build
+          fvm flutter analyze --fatal-infos
+      - name: Validate publication archive
+        run: fvm flutter pub publish --dry-run
+      - name: Score package
+        run: |
+          fvm dart pub global activate pana
+          fvm dart pub global run pana .
 
   cross-platform:
     name: Test (${{ matrix.os }})
@@ -48,7 +68,7 @@ jobs:
       - name: Install FVM
         run: dart pub global activate fvm
       - name: Install dependencies
-        run: fvm flutter pub get --enforce-lockfile
+        run: fvm flutter pub get
       - name: Run tests
         run: fvm flutter test
 
