@@ -1,4 +1,5 @@
 import 'package:dotdart/src/models/lottie_animation.dart';
+import 'package:dotdart/src/models/lottie_composition.dart';
 import 'package:dotdart/src/models/lottie_layer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,6 +60,23 @@ void main() {
       );
 
       expect(animation.layers.length, 1);
+    });
+
+    test('when the animation has precompositions, it should retain them by id', () {
+      const animation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Composed',
+        layers: [],
+        compositions: {
+          'card': LottieComposition(id: 'card', width: 50, height: 60, layers: []),
+        },
+      );
+
+      expect(animation.compositions['card']?.height, 60);
     });
   });
 }

@@ -31,14 +31,36 @@ Generated SVG accessors expose supported source colors as typed `color1`,
 Supported:
 
 - shape layers with groups, paths, rectangles, ellipses, fills, and strokes
+- reusable precomposition layers
+- parented layer transforms, including null controller layers
+- static text layers, including point text and paragraph boxes
+- static, non-inverted, fully opaque additive masks with zero expansion
 - transforms, opacity, trim paths, hold keyframes, and cubic Bézier easing
-- timeline playback, looping, progress control, sizing, and color overrides
+- timeline playback, looping, progress control, sizing, text replacement, and
+  color overrides
 - app lifecycle pause and resume behavior
+
+Generated Lottie accessors clip painting to the source canvas by default,
+matching normal Lottie-player behavior. Pass `clip: false` to allow layers to
+paint beyond that boundary.
+
+Generated text and color fields live on the asset's generated `overrides`
+object and use the Lottie layer name when one is available. Named text fields
+end in `Text`, unless the name already does. For example, layers named `Job
+Title` and `Miami Artwork` produce `jobTitleText`, `jobTitleTextColor`, and
+`miamiArtworkColor1`. Repeated text layer names receive numbered fields such as
+`jobTitleText2` and `jobTitleText2Color`, so every layer remains independently
+editable. Unnamed layers use `text1`, `color1`, and later fields.
+
+Text is painted with Flutter's `TextPainter`. Register the font family named in
+the Lottie file in the consuming app when exact font metrics matter; Flutter's
+normal font fallback is used otherwise.
 
 Not supported:
 
-- image, text, audio, camera, or precomposition layers
-- expressions, effects, masks, mattes, gradients, or 3D layers
+- image, audio, camera, or animated text layers
+- expressions, effects, precomposition time remapping, animated, translucent,
+  expanded, inverted, or non-additive masks, mattes, gradients, or 3D layers
 - nested groups beyond the supported shape-group structure
 
 Unsupported layer and shape types that can be skipped safely produce build

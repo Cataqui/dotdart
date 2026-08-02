@@ -10,6 +10,7 @@ doc/api/
 
 # Coverage
 coverage/
+example/test/failures/
 
 # Local dependency resolution
 /pubspec.lock

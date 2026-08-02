@@ -1,3 +1,4 @@
+import 'lottie_composition.dart';
 import 'lottie_layer.dart';
 
 /// A parsed Lottie animation ready for code generation.
@@ -10,6 +11,7 @@ class LottieAnimation {
     required this.outPoint,
     required this.name,
     required this.layers,
+    this.compositions = const {},
   });
 
   /// Canvas width in pixels (Lottie `w`).
@@ -32,6 +34,9 @@ class LottieAnimation {
 
   /// Layers in rendering order (bottom to top).
   final List<LottieLayer> layers;
+
+  /// Reusable precompositions keyed by their Lottie `id`.
+  final Map<String, LottieComposition> compositions;
 
   /// Total duration in milliseconds.
   int get durationMs => ((outPoint - inPoint) / frameRate * 1000).round();

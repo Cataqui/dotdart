@@ -1,6 +1,7 @@
 import 'package:dotdart/src/models/lottie_keyframe.dart';
 import 'package:dotdart/src/models/lottie_layer.dart';
 import 'package:dotdart/src/models/lottie_shape.dart';
+import 'package:dotdart/src/models/lottie_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -8,9 +9,28 @@ void main() {
     test('when creating a layer with all fields, it should store them', () {
       const group = LottieGroup(name: 'G1', items: []);
       const opacity = LottieAnimatedScalar(animated: false, staticValue: 100);
+      const text = LottieText(
+        value: 'Title',
+        fontFamily: 'Inter',
+        fontWeight: 600,
+        italic: false,
+        fontSize: 16,
+        lineHeight: 20,
+        tracking: 0,
+        justification: 0,
+        colorR: 0,
+        colorG: 0,
+        colorB: 0,
+        colorA: 1,
+      );
       const layer = LottieLayer(
         name: 'Layer A',
         shapeGroups: [group],
+        layerIndex: 7,
+        parentIndex: 3,
+        referenceId: 'composition',
+        text: text,
+        masks: [LottiePath(vertices: [], inTangents: [], outTangents: [], closed: true)],
         opacity: opacity,
         rotation: opacity,
         positionX: opacity,
@@ -21,11 +41,27 @@ void main() {
         scaleY: opacity,
         inPoint: 5,
         outPoint: 25,
+        startTime: 2,
+        stretch: 0.5,
       );
 
       expect(
-        (layer.name, layer.shapeGroups.length, layer.anchorX, layer.anchorY, layer.inPoint, layer.outPoint),
-        ('Layer A', 1, 10, 20, 5, 25),
+        (
+          layer.name,
+          layer.shapeGroups.length,
+          layer.layerIndex,
+          layer.parentIndex,
+          layer.referenceId,
+          layer.text?.value,
+          layer.masks.length,
+          layer.anchorX,
+          layer.anchorY,
+          layer.inPoint,
+          layer.outPoint,
+          layer.startTime,
+          layer.stretch,
+        ),
+        ('Layer A', 1, 7, 3, 'composition', 'Title', 1, 10, 20, 5, 25, 2, 0.5),
       );
     });
 

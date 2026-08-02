@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:dotdart/src/generators/lottie_generator.dart';
 import 'package:dotdart/src/models/lottie_animation.dart';
+import 'package:dotdart/src/models/lottie_composition.dart';
 import 'package:dotdart/src/models/lottie_keyframe.dart';
 import 'package:dotdart/src/models/lottie_layer.dart';
 import 'package:dotdart/src/models/lottie_shape.dart';
+import 'package:dotdart/src/models/lottie_text.dart';
+import 'package:dotdart/src/parsers/lottie_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -51,6 +56,361 @@ void main() {
   );
 
   group('LottieGenerator', () {
+    test('when text and color layers are unnamed, it should expose generic parameters in source order', () {
+      const unnamedAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Unnamed',
+        layers: [
+          LottieLayer(
+            name: '',
+            shapeGroups: [],
+            text: LottieText(
+              value: 'Default',
+              fontFamily: 'Inter',
+              fontWeight: 400,
+              italic: false,
+              fontSize: 12,
+              lineHeight: 12,
+              tracking: 0,
+              justification: 0,
+              colorR: 0,
+              colorG: 0,
+              colorB: 0,
+              colorA: 1,
+            ),
+          ),
+          LottieLayer(
+            name: '',
+            shapeGroups: [
+              LottieGroup(
+                name: '',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                  LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(unnamedAnimation, 'assets/lotties/unnamed.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(contains('final String? text1;'), contains('final Color? color1;'), contains('final Color? color2;')),
+      );
+    });
+
+    test('when Lottie text contains source-breaking characters, it should emit safe generated Dart', () {
+      const unsafeAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Unsafe source',
+        layers: [
+          LottieLayer(
+            name: 'Title\nclass Injected {}',
+            shapeGroups: [],
+            text: LottieText(
+              value: 'Line\u2028break \$value',
+              fontFamily: 'Inter',
+              fontWeight: 400,
+              italic: false,
+              fontSize: 12,
+              lineHeight: 12,
+              tracking: 0,
+              justification: 0,
+              colorR: 0,
+              colorG: 0,
+              colorB: 0,
+              colorA: 1,
+            ),
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(unsafeAnimation, 'assets/lotties/unsafe.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf([
+          contains('/// Replacement text for the `Title class Injected {}` Lottie layer.'),
+          isNot(contains('\nclass Injected {}')),
+          contains(r"text: overrides.titleClassInjectedText ?? 'Line\u2028break \$value'"),
+        ]),
+      );
+    });
+
+    test('when a layer has multiple additive masks, it should combine them before clipping', () {
+      const maskedAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Masks',
+        layers: [
+          LottieLayer(
+            name: 'Masked',
+            shapeGroups: [
+              LottieGroup(
+                name: 'Shape',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                  LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                ],
+              ),
+            ],
+            masks: [
+              LottiePath(
+                vertices: [
+                  [0, 0],
+                  [10, 0],
+                  [10, 10],
+                ],
+                inTangents: [
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                ],
+                outTangents: [
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                ],
+                closed: true,
+              ),
+              LottiePath(
+                vertices: [
+                  [5, 5],
+                  [15, 5],
+                  [15, 15],
+                ],
+                inTangents: [
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                ],
+                outTangents: [
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                ],
+                closed: true,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(maskedAnimation, 'assets/lotties/masks.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('Path.combine(PathOperation.union'),
+          contains('canvas.clipPath(__maskPath0);'),
+          isNot(contains('canvas.clipPath(__maskPath0_0);')),
+        ),
+      );
+    });
+
+    test('when Lottie values are customizable, it should expose one generated overrides parameter', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final params = LottieGenerator(animation, 'assets/lotties/job_cards.json').params;
+
+      expect(
+        params.map((param) => param.name),
+        allOf(contains('overrides'), isNot(contains('jobTitleText')), isNot(contains('payTextColor'))),
+      );
+    });
+
+    test('when naming text overrides, it should append Text once and keep colors inside the overrides class', () {
+      const namedTextAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Named text',
+        layers: [
+          LottieLayer(
+            name: 'Pay',
+            shapeGroups: [],
+            text: LottieText(
+              value: '100',
+              fontFamily: 'Inter',
+              fontWeight: 400,
+              italic: false,
+              fontSize: 12,
+              lineHeight: 12,
+              tracking: 0,
+              justification: 0,
+              colorR: 0,
+              colorG: 0,
+              colorB: 0,
+              colorA: 1,
+            ),
+          ),
+          LottieLayer(
+            name: 'Summary Text',
+            shapeGroups: [],
+            text: LottieText(
+              value: 'Summary',
+              fontFamily: 'Inter',
+              fontWeight: 400,
+              italic: false,
+              fontSize: 12,
+              lineHeight: 12,
+              tracking: 0,
+              justification: 0,
+              colorR: 0,
+              colorG: 0,
+              colorB: 0,
+              colorA: 1,
+            ),
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(namedTextAnimation, 'assets/lotties/named_text.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf([
+          contains('final class NamedTextOverrides'),
+          contains('final String? payText;'),
+          contains('final String? summaryText;'),
+          contains('final Color? payTextColor;'),
+          contains('final Color? summaryTextColor;'),
+          isNot(contains('summaryTextText')),
+        ]),
+      );
+    });
+
+    test('when named text layers are unique, it should expose a separate text and color override for each layer', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf([
+          contains('final String? jobCard01TextPostedTimeText;'),
+          contains('final String? jobCard01TextJobTitleText;'),
+          contains('final String? jobCard01TextPayText;'),
+          contains('final String? jobCard01TextDescriptionText;'),
+          contains('final String? jobCard02TextPostedTimeText;'),
+          contains('final String? jobCard02TextJobTitleText;'),
+          contains('final String? jobCard02TextPayText;'),
+          contains('final String? jobCard02TextDescriptionText;'),
+          contains('final String? jobCard06TextPostedTimeText;'),
+          contains('final String? jobCard06TextJobTitleText;'),
+          contains('final String? jobCard06TextPayText;'),
+          contains('final String? jobCard06TextDescriptionText;'),
+          contains('final Color? jobCard01TextPostedTimeTextColor;'),
+          contains('final Color? jobCard01TextJobTitleTextColor;'),
+          contains('final Color? jobCard01TextPayTextColor;'),
+          contains('final Color? jobCard01TextDescriptionTextColor;'),
+          contains('final Color? jobCard02TextPostedTimeTextColor;'),
+          contains('final Color? jobCard02TextJobTitleTextColor;'),
+          contains('final Color? jobCard02TextPayTextColor;'),
+          contains('final Color? jobCard02TextDescriptionTextColor;'),
+          contains('final Color? jobCard06TextPostedTimeTextColor;'),
+          contains('final Color? jobCard06TextJobTitleTextColor;'),
+          contains('final Color? jobCard06TextPayTextColor;'),
+          contains('final Color? jobCard06TextDescriptionTextColor;'),
+        ]),
+      );
+    });
+
+    test('when generating the job card carousel, it should expose colors named after artwork layers', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('final Color? jobCard01ArtworkColor1;'),
+          contains('final Color? jobCard02ArtworkColor1;'),
+          contains('final Color? jobCard04ArtworkColor1;'),
+        ),
+      );
+    });
+
+    test('when generating the job card carousel, it should paint reusable compositions and custom text', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('TextPainter _textPainterFor'),
+          contains("text: overrides.jobCard01TextJobTitleText ?? 'Garçom'"),
+          contains(r"text: overrides.jobCard01TextPayText ?? r'R$100/dia'"),
+          contains('canvas.clipPath(__maskPath'),
+          contains('_drawJobCard01TextPostedTime'),
+        ),
+      );
+    });
+
+    test('when a layer has a parent controller, it should apply the parent transform before the layer transform', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+      final drawMethod = code.indexOf('void _drawJobCard01FrontInstance0');
+      final parentRotation = code.indexOf('canvas.rotate(_keyframes12Rotation(frame)', drawMethod);
+      final childTranslation = code.indexOf('canvas.translate(229, 249.5)', drawMethod);
+
+      expect(
+        (parentRotation > drawMethod, childTranslation > parentRotation),
+        (true, true),
+      );
+    });
+
+    test('when a layer only controls its children, it should not emit a standalone draw call or method', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final parsedAnimation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(parsedAnimation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('// Parent transform: Job Card 01 / Orbit Controller'),
+          isNot(contains('_drawJobCard01OrbitController12(canvas, frame, 1);')),
+          isNot(contains('void _drawJobCard01OrbitController12(')),
+        ),
+      );
+    });
+
+    test('when shape groups overlap, it should paint the bottom Lottie group before the groups above it', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code.indexOf('// Group: Job Card 01 / Surface / Base'),
+        lessThan(code.indexOf('// Group: Job Card 01 / Map / Style 03')),
+      );
+    });
+
     test('when generating code, it should produce valid Dart', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
@@ -78,7 +438,7 @@ void main() {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('color1'));
+      expect(code, contains('layer1Color1'));
     });
 
     test('when generating code, it should include the lottie dimensions', () {
@@ -89,6 +449,84 @@ void main() {
         code,
         allOf(contains('_lottieWidth = 200'), contains('_lottieHeight = 200'), contains('_totalFrames = 60')),
       );
+    });
+
+    test('when a layer spans the animation, it should share the single animation bounds guard', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+      final drawMethod = code.substring(code.indexOf('void _drawLayer10'));
+
+      expect(
+        (code.contains('if (frame >= 60) return;'), drawMethod.contains('if (frame < 0 || frame >= 60) return;')),
+        (true, false),
+      );
+    });
+
+    test('when an animation starts after frame zero, it should offset progress by the in-point', () {
+      const offsetAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 10,
+        outPoint: 40,
+        name: 'Offset',
+        layers: [],
+      );
+
+      final code = LottieGenerator(offsetAnimation, 'assets/lottie/offset.json').generateWidgetClass();
+
+      expect(code, contains('final frame = 10 + progress * _Offset._totalFrames;'));
+    });
+
+    test('when a precomposition shifts child time, it should retain the child visibility guard', () {
+      const shiftedCompositionAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 60,
+        inPoint: 0,
+        outPoint: 60,
+        name: 'Shifted child',
+        layers: [
+          LottieLayer(
+            name: 'Reference',
+            shapeGroups: [],
+            referenceId: 'child',
+            inPoint: 0,
+            outPoint: 60,
+            startTime: 10,
+          ),
+        ],
+        compositions: {
+          'child': LottieComposition(
+            id: 'child',
+            width: 100,
+            height: 100,
+            layers: [
+              LottieLayer(
+                name: 'Child',
+                shapeGroups: [
+                  LottieGroup(
+                    name: 'Visible',
+                    items: [
+                      LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                      LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                    ],
+                  ),
+                ],
+                inPoint: 0,
+                outPoint: 60,
+              ),
+            ],
+          ),
+        },
+      );
+
+      final code = LottieGenerator(
+        shiftedCompositionAnimation,
+        'assets/lottie/shifted_child.json',
+      ).generateWidgetClass();
+      final childMethod = code.substring(code.indexOf('void _drawChild1'));
+
+      expect(childMethod, contains('if (frame < 0 || frame >= 60) return;'));
     });
 
     test('when generating code, it should use the shared Lottie animation state mixin', () {
@@ -158,14 +596,74 @@ void main() {
       );
     });
 
+    test('when generating a painter, it should compute canvas scale once outside the paint hot path', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('canvasScaleX: width / _Test._lottieWidth,'),
+          contains('canvas.scale(_canvasScaleX, _canvasScaleY);'),
+          isNot(contains('final scaleX = size.width / _Test._lottieWidth;')),
+        ),
+      );
+    });
+
+    test('when clipping a generated painter, it should reuse a canvas rectangle allocated during build', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('canvasRect: Rect.fromLTWH(0, 0, width, height),'),
+          contains('if (clip) canvas.clipRect(_canvasRect);'),
+          isNot(contains('Offset.zero & size')),
+        ),
+      );
+    });
+
+    test('when generating automatic playback, it should keep the painter attached while the controller is paused', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('animationProgress: widget.progress == null ? _controller : null,'),
+          isNot(contains('animationProgress: _shouldAnimate() ? _controller : null,')),
+        ),
+      );
+    });
+
+    test('when generating unboxed text, it should compute and cache its paint offset with the text layout', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final parsedAnimation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(parsedAnimation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains(
+            '_textPainter18Offset = Offset(0, -painter.computeDistanceToActualBaseline(TextBaseline.alphabetic));',
+          ),
+          contains('textPainter.paint(canvas, _textPainter18Offset);'),
+        ),
+      );
+    });
+
     test('when generating code, it should delegate lifecycle management to the mixin', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('_DotdartLottieAnimationState<_Test>'));
-      expect(code, isNot(contains('void initState()')));
-      expect(code, isNot(contains('void didChangeAppLifecycleState')));
-      expect(code, isNot(contains('void dispose()')));
+      expect(
+        code,
+        allOf(
+          contains('_DotdartLottieAnimationState<_Test>'),
+          isNot(contains('void initState()')),
+          isNot(contains('void didChangeAppLifecycleState')),
+          isNot(contains('_controller.dispose()')),
+        ),
+      );
     });
 
     test('when generating code, it should include the draw method for the layer', () {
@@ -249,7 +747,13 @@ void main() {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('_dotdartApplyOpacity(color1, layerOpacity * 1)'), isNot(contains('saveLayer'))));
+      expect(
+        code,
+        allOf(
+          contains('_dotdartApplyOpacity(overrides.layer1Color1 ?? const Color(0xffff0000), layerOpacity * 1)'),
+          isNot(contains('saveLayer')),
+        ),
+      );
     });
 
     test('when generating code for an open path, it should not close the generated path', () {
@@ -335,6 +839,31 @@ void main() {
       expect(param.defaultValue, 'true');
     });
 
+    test('when getting params, it should include clip with default true', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final params = generator.params;
+
+      final param = params.firstWhere((candidate) => candidate.name == 'clip');
+      expect((param.type, param.defaultValue), ('bool', 'true'));
+    });
+
+    test('when generating clipping controls, it should conditionally clip and repaint at the canvas boundary', () {
+      final generator = LottieGenerator(animation, 'assets/lottie/test.json');
+      final code = generator.generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('this.clip = true'),
+          contains('final bool clip;'),
+          contains('clip: widget.clip'),
+          contains('required this.clip'),
+          contains('if (clip) canvas.clipRect(_canvasRect);'),
+          contains('oldDelegate.clip != clip'),
+        ),
+      );
+    });
+
     test('when generating source, it should emit the maintainAspectRatio field declaration in Lottie widgets', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
@@ -349,19 +878,18 @@ void main() {
       expect(code, contains('bool get lottieMaintainAspectRatio => widget.maintainAspectRatio;'));
     });
 
-    test('when getting params, it should include color props for each unique color', () {
+    test('when getting params, it should include one overrides object for customizable colors', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final params = generator.params;
 
-      expect(params.any((p) => p.name == 'color1' && p.type == 'Color?'), isTrue);
+      expect(params.any((p) => p.name == 'overrides' && p.type == 'TestOverrides'), isTrue);
     });
 
     test('when extracting colors from the animation, it should produce correct color entries', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
-      final params = generator.params;
+      final code = generator.generateWidgetClass();
 
-      final colorParams = params.where((p) => p.name.startsWith('color')).toList();
-      expect(colorParams.length, 2);
+      expect(RegExp(r'final Color\? layer1Color\d;').allMatches(code).length, 2);
     });
   });
 
@@ -759,7 +1287,15 @@ void main() {
         layers: [
           LottieLayer(
             name: 'Layer',
-            shapeGroups: [],
+            shapeGroups: [
+              LottieGroup(
+                name: 'Visible',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                  LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                ],
+              ),
+            ],
             positionX: LottieAnimatedScalar(
               animated: true,
               keyframes: [
@@ -859,15 +1395,37 @@ void main() {
         outPoint: 60,
         name: 'Layer Order',
         layers: [
-          LottieLayer(name: 'Top Layer', shapeGroups: []),
-          LottieLayer(name: 'Bottom Layer', shapeGroups: []),
+          LottieLayer(
+            name: 'Top Layer',
+            shapeGroups: [
+              LottieGroup(
+                name: 'Top',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                  LottieFill(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100),
+                ],
+              ),
+            ],
+          ),
+          LottieLayer(
+            name: 'Bottom Layer',
+            shapeGroups: [
+              LottieGroup(
+                name: 'Bottom',
+                items: [
+                  LottieRect(positionX: 0, positionY: 0, width: 10, height: 10, cornerRadius: 0),
+                  LottieFill(colorR: 0, colorG: 0, colorB: 1, colorA: 1, opacity: 100),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final generator = LottieGenerator(multiLayer, 'assets/lottie/layer_order.json');
       final code = generator.generateWidgetClass();
 
       expect(
-        code.indexOf('_drawBottomLayer1(canvas, frame);') < code.indexOf('_drawTopLayer0(canvas, frame);'),
+        code.indexOf('_drawBottomLayer1(canvas, frame, 1);') < code.indexOf('_drawTopLayer0(canvas, frame, 1);'),
         isTrue,
       );
     });
@@ -910,7 +1468,7 @@ void main() {
       expect(code, allOf(contains('Group: Group 1'), contains('Group: Group 2')));
     });
 
-    test('when generating code with multiple rects in the same group, it should emit unique cached geometry names', () {
+    test('when a non-zero fill applies to multiple shapes, it should draw them as one compound path', () {
       const multiRect = LottieAnimation(
         width: 100,
         height: 100,
@@ -938,7 +1496,16 @@ void main() {
       final generator = LottieGenerator(multiRect, 'assets/lottie/multi_rect.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, allOf(contains('_rrect0_0_0'), contains('_rrect0_0_1'), isNot(contains('final bodyRect ='))));
+      expect(
+        code,
+        allOf(
+          contains('static final Path _compoundFillPath0_0 = Path()'),
+          contains('..addRRect('),
+          contains('canvas.drawPath(_compoundFillPath0_0, compoundFillPaint0)'),
+          isNot(contains('PathFillType.evenOdd')),
+          isNot(contains('static final RRect _rrect0_0_0')),
+        ),
+      );
     });
 
     test('when generating code with an even-odd fill across multiple rects, it should combine them into one path', () {
@@ -1342,8 +1909,7 @@ void main() {
       final generator = LottieGenerator(dedupAnimation, 'assets/lottie/dedup.json');
       final code = generator.generateWidgetClass();
 
-      expect(code, isNot(contains('color2')));
-      expect(code, contains('color1'));
+      expect(code, allOf(isNot(contains('layerColor2')), contains('layerColor')));
     });
   });
 }

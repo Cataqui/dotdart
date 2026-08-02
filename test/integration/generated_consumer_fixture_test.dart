@@ -39,6 +39,7 @@ class GeneratedConsumerFixture {
     _copyDirectory(Directory('${packageRoot.path}/test/fixtures/generated_consumer'), fixtureDirectory);
     _writePubspec(fixtureDirectory);
     _writeRasterAssets(fixtureDirectory);
+    _writeLottieAssets(fixtureDirectory);
 
     final flutterRoot = Platform.environment['FLUTTER_ROOT'];
     if (flutterRoot == null) {
@@ -111,6 +112,12 @@ class GeneratedConsumerFixture {
       ..addFrame(firstFrame, duration: 10)
       ..addFrame(secondFrame, duration: 10);
     File('${assetDirectory.path}/animated.gif').writeAsBytesSync(gifEncoder.finish()!);
+  }
+
+  void _writeLottieAssets(Directory fixtureDirectory) {
+    File('${packageRoot.path}/example/assets/lotties/cataqui_job_cards_carousel.json').copySync(
+      '${fixtureDirectory.path}/assets/lotties/cataqui_job_cards_carousel.json',
+    );
   }
 
   Map<String, String> _generatedSourceSnapshot(Directory fixtureDirectory) {

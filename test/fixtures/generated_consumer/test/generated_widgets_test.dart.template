@@ -16,7 +16,16 @@ void main() {
               $Icons.fixtureIcon(width: 24),
               $Icons.lottie(width: 40, progress: 0.5),
               $Icons.photo(width: 24),
-              $Lotties.fixtureAnimation(width: 40, progress: 0.5),
+              $Lotties.fixtureAnimation(width: 40, progress: 0.5, clip: false),
+              $Lotties.cataquiJobCardsCarousel(
+                width: 120,
+                progress: 0.5,
+                overrides: const CataquiJobCardsCarouselOverrides(
+                  jobCard01TextJobTitleText: 'Custom title',
+                  jobCard02TextJobTitleText: 'Another title',
+                  jobCard01TextPayTextColor: Colors.green,
+                ),
+              ),
               $Images.landscape(width: 80),
               $Images.portrait(height: 80),
               $Images.animated(width: 40),
@@ -65,6 +74,5 @@ void main() {
 
       expect(tester.takeException(), isNull);
     });
-
   });
 }
