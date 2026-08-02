@@ -30,7 +30,7 @@ jobs:
           cd example
           fvm flutter pub get --enforce-lockfile
       - name: Check formatting
-        run: fvm dart format --line-length 120 --output none --set-exit-if-changed lib test example/lib/main.dart
+        run: fvm dart format --line-length 120 --output none --set-exit-if-changed lib test example/lib/main.dart example/test
       - name: Analyze package
         run: fvm flutter analyze --fatal-infos
       - name: Run tests
@@ -42,6 +42,15 @@ jobs:
           cd example
           fvm dart run build_runner build
           fvm flutter analyze --fatal-infos
+      - name: Test example
+        run: |
+          cd example
+          fvm flutter test
+      - name: Build example for Web
+        run: |
+          cd example
+          fvm flutter build web
+          fvm flutter build web --wasm
       - name: Validate publication archive
         run: fvm flutter pub publish --dry-run
       - name: Score package

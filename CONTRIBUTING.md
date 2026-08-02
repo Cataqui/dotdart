@@ -16,7 +16,7 @@ bugs and accepted feature work.
 ## Development
 
 ```bash
-git clone https://github.com/Cataqui/dotdart.git
+git clone https://github.com/Ventairy/dotdart.git
 cd dotdart
 make setup
 make check

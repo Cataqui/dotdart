@@ -42,13 +42,16 @@ versioning and uses immutable `v<version>` Git tags.
 - [ ] Wait for every required CI check to pass on the release commit.
 - [ ] Confirm the release commit's `pubspec.yaml` version exactly matches the
       planned tag.
+- [ ] Obtain explicit release-owner authorization to publish. Pushing the
+      version tag starts the trusted-publishing workflow immediately.
 - [ ] Create the immutable `v<version>` tag.
 - [ ] Create the matching GitHub Release from that tag.
 
 ## Publish to pub.dev
 
-Publishing is separate from creating a GitHub Release. Never run a real pub.dev
-publication command unless the release owner explicitly requests it.
+Publication verification is separate from creating a GitHub Release. Never run
+a real pub.dev publication command or push a version tag unless the release
+owner explicitly requests publication.
 
 - [ ] For the first pub.dev release, upload manually under the intended
       publisher.

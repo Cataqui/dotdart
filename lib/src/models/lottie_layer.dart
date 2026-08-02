@@ -1,13 +1,18 @@
 import 'lottie_keyframe.dart';
 import 'lottie_shape.dart';
+import 'lottie_text.dart';
 
 /// A single layer in a Lottie animation.
 ///
-/// Currently only shape layers (`ty: 4`) are supported.
 class LottieLayer {
   const LottieLayer({
     required this.name,
     required this.shapeGroups,
+    this.layerIndex,
+    this.parentIndex,
+    this.referenceId,
+    this.text,
+    this.masks = const [],
     this.opacity,
     this.rotation,
     this.positionX,
@@ -18,6 +23,8 @@ class LottieLayer {
     this.scaleY,
     this.inPoint = 0,
     this.outPoint = 0,
+    this.startTime = 0,
+    this.stretch = 1,
   });
 
   /// Layer name (Lottie `nm`).
@@ -25,6 +32,21 @@ class LottieLayer {
 
   /// Shape groups in this layer.
   final List<LottieGroup> shapeGroups;
+
+  /// Layer index used by Lottie parent references (`ind`).
+  final int? layerIndex;
+
+  /// Index of the layer whose transform is inherited (`parent`).
+  final int? parentIndex;
+
+  /// Referenced composition for a precomposition layer (`ty: 0`).
+  final String? referenceId;
+
+  /// Text content for a text layer (`ty: 5`).
+  final LottieText? text;
+
+  /// Static additive masks applied before this layer is painted.
+  final List<LottiePath> masks;
 
   /// Opacity (0–100). `null` means 100 (fully opaque).
   final LottieAnimatedScalar? opacity;
@@ -55,6 +77,12 @@ class LottieLayer {
 
   /// Out-point frame (Lottie `op`).
   final int outPoint;
+
+  /// Layer start time (`st`).
+  final double startTime;
+
+  /// Layer time stretch (`sr`).
+  final double stretch;
 }
 
 /// An animated or static scalar value.

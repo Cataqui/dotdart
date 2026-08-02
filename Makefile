@@ -8,10 +8,10 @@ setup:
 	cd example && fvm flutter pub get --enforce-lockfile
 
 format:
-	fvm dart format --line-length 120 lib test example/lib/main.dart
+	fvm dart format --line-length 120 lib test example/lib/main.dart example/test
 
 format-check:
-	fvm dart format --line-length 120 --output none --set-exit-if-changed lib test example/lib/main.dart
+	fvm dart format --line-length 120 --output none --set-exit-if-changed lib test example/lib/main.dart example/test
 
 analyze:
 	fvm flutter analyze --fatal-infos
@@ -28,6 +28,7 @@ docs:
 example:
 	cd example && fvm dart run build_runner build
 	cd example && fvm flutter analyze --fatal-infos
+	cd example && fvm flutter test
 
 publish-dry-run:
 	fvm flutter pub publish --dry-run

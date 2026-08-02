@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import '../models/lottie_animation.dart';
+import '../models/lottie_composition.dart';
 import '../models/lottie_keyframe.dart';
 import '../models/lottie_layer.dart';
 import '../models/lottie_shape.dart';
+import '../models/lottie_text.dart';
 
 /// Exception thrown when the parser encounters an unsupported Lottie feature.
 class DotdartUnsupportedFeatureException implements Exception {
@@ -43,11 +45,14 @@ class LottieParser {
   /// Parses [jsonString] as a Lottie animation.
   ///
   /// The JSON must have the standard Lottie top-level fields (`v`, `fr`, `w`,
-  /// `h`, `layers`). Non-shape layers (`ty` other than 4) are skipped with a
-  /// warning message returned in the result.
+  /// `h`, `layers`). Shape, precomposition, static text, and null controller
+  /// layers are parsed. Other layer types are skipped with a warning returned
+  /// in the result.
   static LottieParseResult parse(String jsonString) {
     try {
       return _parse(jsonString);
+    } on DotdartUnsupportedFeatureException {
+      rethrow;
     } on DotdartInvalidLottieException {
       rethrow;
     } on FormatException catch (error) {
@@ -77,19 +82,54 @@ class LottieParser {
     }
 
     final nm = root['nm'] as String? ?? '';
-    final layersRaw = _optionalList(root['layers'], path: r'$.layers');
-
-    final layers = <LottieLayer>[];
-    for (var index = 0; index < layersRaw.length; index++) {
-      final layer = _parseLayer(
-        _requiredMap(layersRaw[index], path: '\$.layers[$index]'),
-        warnings,
-        path: '\$.layers[$index]',
-      );
-      if (layer != null) {
-        layers.add(layer);
+    final fonts = _parseFonts(root['fonts']);
+    final assetsRaw = _optionalList(root['assets'], path: r'$.assets');
+    final assetMaps = <String, Map<String, dynamic>>{};
+    for (var index = 0; index < assetsRaw.length; index++) {
+      final path = '\$.assets[$index]';
+      final asset = _requiredMap(assetsRaw[index], path: path);
+      final id = asset['id'];
+      if (id is! String || id.isEmpty) {
+        throw DotdartInvalidLottieException('Expected a non-empty string at $path.id.');
       }
+      if (assetMaps.containsKey(id)) {
+        throw DotdartInvalidLottieException('Expected unique asset ids; found duplicate id "$id" at $path.id.');
+      }
+      assetMaps[id] = asset;
     }
+
+    final compositionAssets = <String, Map<String, dynamic>>{
+      for (final entry in assetMaps.entries)
+        if (entry.value.containsKey('layers')) entry.key: entry.value,
+    };
+    final compositionIds = compositionAssets.keys.toSet();
+    final compositions = <String, LottieComposition>{};
+    for (final entry in compositionAssets.entries) {
+      final asset = entry.value;
+      final layers = _parseLayers(
+        _optionalList(asset['layers'], path: '\$.assets["${entry.key}"].layers'),
+        warnings,
+        fonts: fonts,
+        compositionIds: compositionIds,
+        path: '\$.assets["${entry.key}"].layers',
+      );
+      compositions[entry.key] = LottieComposition(
+        id: entry.key,
+        width: _requiredPositiveInt(asset, 'w'),
+        height: _requiredPositiveInt(asset, 'h'),
+        layers: layers,
+      );
+    }
+    _validateCompositionReferences(compositions);
+
+    final layersRaw = _optionalList(root['layers'], path: r'$.layers');
+    final layers = _parseLayers(
+      layersRaw,
+      warnings,
+      fonts: fonts,
+      compositionIds: compositionIds,
+      path: r'$.layers',
+    );
 
     return LottieParseResult(
       animation: LottieAnimation(
@@ -100,26 +140,63 @@ class LottieParser {
         outPoint: op,
         name: nm,
         layers: layers,
+        compositions: compositions,
       ),
       warnings: warnings,
     );
   }
 
-  static LottieLayer? _parseLayer(Map<String, dynamic> raw, List<String> warnings, {required String path}) {
+  static List<LottieLayer> _parseLayers(
+    List<dynamic> rawLayers,
+    List<String> warnings, {
+    required Map<String, ({String family, int weight, bool italic})> fonts,
+    required Set<String> compositionIds,
+    required String path,
+  }) {
+    final layers = <LottieLayer>[];
+    for (var index = 0; index < rawLayers.length; index++) {
+      final layerPath = '$path[$index]';
+      final layer = _parseLayer(
+        _requiredMap(rawLayers[index], path: layerPath),
+        warnings,
+        fonts: fonts,
+        compositionIds: compositionIds,
+        path: layerPath,
+      );
+      if (layer != null) layers.add(layer);
+    }
+    _validateLayerParents(layers, path: path);
+    return layers;
+  }
+
+  static LottieLayer? _parseLayer(
+    Map<String, dynamic> raw,
+    List<String> warnings, {
+    required Map<String, ({String family, int weight, bool italic})> fonts,
+    required Set<String> compositionIds,
+    required String path,
+  }) {
     final ty = raw['ty'] as int?;
     if (ty == null) return null;
 
-    if (ty != 4) {
+    if (ty != 0 && ty != 3 && ty != 4 && ty != 5) {
       final nm = raw['nm'] as String? ?? 'unknown';
-      warnings.add('Skipping non-shape layer "$nm" (ty: $ty) — only shape layers (ty: 4) are supported.');
+      warnings.add('Skipping unsupported layer "$nm" (ty: $ty).');
       return null;
     }
 
     final nm = raw['nm'] as String? ?? '';
     final ks = _optionalMap(raw['ks'], path: '$path.ks');
-    final shapesRaw = _optionalList(raw['shapes'], path: '$path.shapes');
+    final shapesRaw = ty == 4 ? _optionalList(raw['shapes'], path: '$path.shapes') : const <dynamic>[];
     final ip = (raw['ip'] as num?)?.toInt() ?? 0;
     final op = (raw['op'] as num?)?.toInt() ?? 0;
+    final referenceId = raw['refId'] as String?;
+    if (ty == 0 && (referenceId == null || !compositionIds.contains(referenceId))) {
+      throw DotdartInvalidLottieException('Expected $path.refId to reference a Lottie precomposition asset.');
+    }
+    if (ty == 0 && raw['tm'] != null) {
+      throw DotdartUnsupportedFeatureException('$path uses precomposition time remapping.');
+    }
 
     final shapeGroups = <LottieGroup>[];
     for (var index = 0; index < shapesRaw.length; index++) {
@@ -133,6 +210,11 @@ class LottieParser {
     return LottieLayer(
       name: nm,
       shapeGroups: shapeGroups,
+      layerIndex: _optionalInt(raw['ind'], path: '$path.ind'),
+      parentIndex: _optionalInt(raw['parent'], path: '$path.parent'),
+      referenceId: referenceId,
+      text: ty == 5 ? _parseText(raw, fonts, path: path) : null,
+      masks: _parseMasks(raw['masksProperties'], path: '$path.masksProperties'),
       opacity: _parseAnimatedScalar(ks['o'] as Map<String, dynamic>?),
       rotation: _parseAnimatedScalar(ks['r'] as Map<String, dynamic>?),
       positionX: _parseAnimatedScalarFromArray(ks['p'] as Map<String, dynamic>?, 0),
@@ -143,7 +225,199 @@ class LottieParser {
       scaleY: _parseAnimatedScalarFromArray(ks['s'] as Map<String, dynamic>?, 1),
       inPoint: ip,
       outPoint: op,
+      startTime: (raw['st'] as num?)?.toDouble() ?? 0,
+      stretch: (raw['sr'] as num?)?.toDouble() ?? 1,
     );
+  }
+
+  static void _validateLayerParents(List<LottieLayer> layers, {required String path}) {
+    final layersByIndex = <int, LottieLayer>{};
+    for (final layer in layers) {
+      final layerIndex = layer.layerIndex;
+      if (layerIndex == null) continue;
+      if (layersByIndex.containsKey(layerIndex)) {
+        throw DotdartInvalidLottieException('Expected unique layer indexes at $path; found duplicate ind $layerIndex.');
+      }
+      layersByIndex[layerIndex] = layer;
+    }
+
+    for (final layer in layers) {
+      var parentIndex = layer.parentIndex;
+      if (parentIndex == null) continue;
+      final visited = <int>{};
+      final layerIndex = layer.layerIndex;
+      if (layerIndex != null) visited.add(layerIndex);
+      while (parentIndex != null) {
+        final parent = layersByIndex[parentIndex];
+        if (parent == null) {
+          throw DotdartInvalidLottieException(
+            'Expected parent $parentIndex for layer "${layer.name}" to reference a parsed layer at $path.',
+          );
+        }
+        if (!visited.add(parentIndex)) {
+          throw DotdartInvalidLottieException('Expected an acyclic layer parent hierarchy at $path.');
+        }
+        parentIndex = parent.parentIndex;
+      }
+    }
+  }
+
+  static void _validateCompositionReferences(Map<String, LottieComposition> compositions) {
+    final visiting = <String>{};
+    final visited = <String>{};
+    for (final id in compositions.keys) {
+      _visitComposition(id, compositions, visiting, visited);
+    }
+  }
+
+  static void _visitComposition(
+    String id,
+    Map<String, LottieComposition> compositions,
+    Set<String> visiting,
+    Set<String> visited,
+  ) {
+    if (visited.contains(id)) return;
+    if (!visiting.add(id)) {
+      throw DotdartInvalidLottieException('Expected an acyclic precomposition graph; found a cycle at asset "$id".');
+    }
+    for (final layer in compositions[id]!.layers) {
+      final referenceId = layer.referenceId;
+      if (referenceId != null) {
+        _visitComposition(referenceId, compositions, visiting, visited);
+      }
+    }
+    visiting.remove(id);
+    visited.add(id);
+  }
+
+  static Map<String, ({String family, int weight, bool italic})> _parseFonts(Object? raw) {
+    if (raw == null) return const {};
+    final fonts = _requiredMap(raw, path: r'$.fonts');
+    final list = _optionalList(fonts['list'], path: r'$.fonts.list');
+    final result = <String, ({String family, int weight, bool italic})>{};
+    for (var index = 0; index < list.length; index++) {
+      final font = _requiredMap(list[index], path: '\$.fonts.list[$index]');
+      final name = font['fName'];
+      final family = font['fFamily'];
+      if (name is! String || family is! String) continue;
+      final style = (font['fStyle'] as String? ?? '').toLowerCase();
+      result[name] = (
+        family: family,
+        weight: _fontWeight(style),
+        italic: style.contains('italic'),
+      );
+    }
+    return result;
+  }
+
+  static int _fontWeight(String style) {
+    if (style.contains('thin')) return 100;
+    if (style.contains('extralight') || style.contains('ultralight')) return 200;
+    if (style.contains('light')) return 300;
+    if (style.contains('medium')) return 500;
+    if (style.contains('semibold') || style.contains('demibold')) return 600;
+    if (style.contains('extrabold') || style.contains('ultrabold')) return 800;
+    if (style.contains('bold')) return 700;
+    if (style.contains('black') || style.contains('heavy')) return 900;
+    return 400;
+  }
+
+  static LottieText _parseText(
+    Map<String, dynamic> raw,
+    Map<String, ({String family, int weight, bool italic})> fonts, {
+    required String path,
+  }) {
+    final text = _requiredMap(raw['t'], path: '$path.t');
+    final document = _requiredMap(text['d'], path: '$path.t.d');
+    final keyframes = _optionalList(document['k'], path: '$path.t.d.k');
+    if (keyframes.length != 1) {
+      throw DotdartUnsupportedFeatureException(
+        '$path uses animated text documents; only one static text document is supported.',
+      );
+    }
+    final keyframe = _requiredMap(keyframes.single, path: '$path.t.d.k[0]');
+    final style = _requiredMap(keyframe['s'], path: '$path.t.d.k[0].s');
+    final value = style['t'];
+    final fontName = style['f'];
+    final fontSize = style['s'];
+    if (value is! String || fontName is! String || fontSize is! num) {
+      throw DotdartInvalidLottieException('Expected static text, font, and size at $path.t.d.k[0].s.');
+    }
+    final font = fonts[fontName] ?? (family: fontName, weight: 400, italic: false);
+    final color = _numberList(style['fc'], path: '$path.t.d.k[0].s.fc');
+    final box = style['sz'] == null ? const <double>[] : _numberList(style['sz'], path: '$path.t.d.k[0].s.sz');
+    return LottieText(
+      value: value,
+      fontFamily: font.family,
+      fontWeight: font.weight,
+      italic: font.italic,
+      fontSize: fontSize.toDouble(),
+      lineHeight: (style['lh'] as num?)?.toDouble() ?? fontSize.toDouble(),
+      tracking: (style['tr'] as num?)?.toDouble() ?? 0,
+      justification: (style['j'] as num?)?.toInt() ?? 0,
+      colorR: color.isNotEmpty ? color[0] : 0,
+      colorG: color.length > 1 ? color[1] : 0,
+      colorB: color.length > 2 ? color[2] : 0,
+      colorA: color.length > 3 ? color[3] : 1,
+      boxWidth: box.isNotEmpty ? box[0] : null,
+      boxHeight: box.length > 1 ? box[1] : null,
+    );
+  }
+
+  static List<LottiePath> _parseMasks(Object? raw, {required String path}) {
+    final masks = _optionalList(raw, path: path);
+    final result = <LottiePath>[];
+    for (var index = 0; index < masks.length; index++) {
+      final maskPath = '$path[$index]';
+      final mask = _requiredMap(masks[index], path: maskPath);
+      if ((mask['mode'] as String? ?? 'a') != 'a' || (mask['inv'] as bool? ?? false)) {
+        throw DotdartUnsupportedFeatureException(
+          '$maskPath uses a mask mode other than a non-inverted additive mask.',
+        );
+      }
+      final property = _requiredMap(mask['pt'], path: '$maskPath.pt');
+      if ((property['a'] as num?)?.toInt() == 1) {
+        throw DotdartUnsupportedFeatureException('$maskPath uses an animated mask path.');
+      }
+      final opacity = _staticMaskValue(mask['o'], path: '$maskPath.o', fallback: 100);
+      if (opacity != 100) {
+        throw DotdartUnsupportedFeatureException('$maskPath uses mask opacity other than 100%.');
+      }
+      final expansion = _staticMaskValue(mask['x'], path: '$maskPath.x', fallback: 0);
+      if (expansion != 0) {
+        throw DotdartUnsupportedFeatureException('$maskPath uses non-zero mask expansion.');
+      }
+      result.add(_parsePath({'ks': property}));
+    }
+    return result;
+  }
+
+  static double _staticMaskValue(Object? raw, {required String path, required double fallback}) {
+    if (raw == null) return fallback;
+    final property = _requiredMap(raw, path: path);
+    if ((property['a'] as num?)?.toInt() == 1) {
+      throw DotdartUnsupportedFeatureException('$path is animated.');
+    }
+    final value = property['k'];
+    if (value is num) return value.toDouble();
+    if (value is List<dynamic> && value.isNotEmpty && value.first is num) {
+      return (value.first as num).toDouble();
+    }
+    throw DotdartInvalidLottieException('Expected a static mask value at $path.k.');
+  }
+
+  static List<double> _numberList(Object? raw, {required String path}) {
+    if (raw is! List<dynamic>) {
+      throw DotdartInvalidLottieException('Expected a list of numbers at $path.');
+    }
+    final result = <double>[];
+    for (final value in raw) {
+      if (value is! num) {
+        throw DotdartInvalidLottieException('Expected a list of numbers at $path.');
+      }
+      result.add(value.toDouble());
+    }
+    return result;
   }
 
   static LottieGroup? _parseShapeGroup(Map<String, dynamic> raw, List<String> warnings, {required String path}) {
@@ -441,6 +715,14 @@ class LottieParser {
       throw DotdartInvalidLottieException('Expected Lottie "$key" to be a positive number.');
     }
 
+    return value.toInt();
+  }
+
+  static int? _optionalInt(Object? value, {required String path}) {
+    if (value == null) return null;
+    if (value is! num || value != value.toInt()) {
+      throw DotdartInvalidLottieException('Expected an integer at $path.');
+    }
     return value.toInt();
   }
 

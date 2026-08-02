@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dotdart/src/models/lottie_shape.dart';
 import 'package:dotdart/src/parsers/lottie_parser.dart';
@@ -74,6 +75,134 @@ const _minimalLottie = '''
 
 void main() {
   group('LottieParser', () {
+    test('when parsing the job card carousel, it should retain precomposition and parent controller layers', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+
+      final result = LottieParser.parse(source);
+
+      expect(
+        (result.animation.layers.length, result.animation.compositions.length),
+        (18, 6),
+      );
+    });
+
+    test('when an unused asset is not a precomposition, it should leave it out of parsed compositions', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'assets': [
+          {'id': 'sound', 'p': 'sound.mp3'},
+        ],
+        'layers': <Object?>[],
+      });
+
+      expect(LottieParser.parse(json).animation.compositions, isEmpty);
+    });
+
+    test('when a precomposition layer references a non-composition asset, it should reject the reference', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'assets': [
+          {'id': 'image', 'w': 10, 'h': 10, 'p': 'image.png'},
+        ],
+        'layers': [
+          {'ty': 0, 'refId': 'image'},
+        ],
+      });
+
+      expect(
+        () => LottieParser.parse(json),
+        throwsA(
+          isA<DotdartInvalidLottieException>().having((error) => error.message, 'message', contains('precomposition')),
+        ),
+      );
+    });
+
+    test('when parsing a parented layer, it should retain the child and parent indexes', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+
+      final layers = LottieParser.parse(source).animation.layers;
+
+      expect(
+        (layers.first.layerIndex, layers.first.parentIndex, layers.last.layerIndex, layers.last.parentIndex),
+        (1, 13, 18, null),
+      );
+    });
+
+    test('when a parent index does not exist, it should reject the layer hierarchy', () {
+      final decoded = jsonDecode(_minimalLottie) as Map<String, dynamic>;
+      final layer = (decoded['layers'] as List<dynamic>).single as Map<String, dynamic>;
+      layer['ind'] = 1;
+      layer['parent'] = 2;
+
+      expect(
+        () => LottieParser.parse(jsonEncode(decoded)),
+        throwsA(
+          isA<DotdartInvalidLottieException>().having(
+            (error) => error.message,
+            'message',
+            contains('Expected parent 2'),
+          ),
+        ),
+      );
+    });
+
+    test('when parent indexes form a cycle, it should reject the layer hierarchy', () {
+      const source = '''
+{"v":"5.7.0","fr":30,"w":100,"h":100,"ip":0,"op":30,"layers":[
+  {"ty":3,"ind":1,"parent":2,"nm":"One","ks":{}},
+  {"ty":3,"ind":2,"parent":1,"nm":"Two","ks":{}}
+]}
+''';
+
+      expect(
+        () => LottieParser.parse(source),
+        throwsA(
+          isA<DotdartInvalidLottieException>().having(
+            (error) => error.message,
+            'message',
+            contains('acyclic layer parent hierarchy'),
+          ),
+        ),
+      );
+    });
+
+    test('when parsing the job card carousel, it should retain its editable named text layers', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+
+      final result = LottieParser.parse(source);
+      final textLayers = result.animation.compositions.values
+          .expand((composition) => composition.layers)
+          .where((layer) => layer.text != null)
+          .toList();
+
+      expect(
+        (textLayers.length, textLayers.first.name, textLayers.last.name),
+        (24, 'Job Card 01 / Text / Posted Time', 'Job Card 06 / Text / Description'),
+      );
+    });
+
+    test('when parsing the job card carousel, it should retain its rounded card masks', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+
+      final result = LottieParser.parse(source);
+      final maskCount = result.animation.compositions.values
+          .expand((composition) => composition.layers)
+          .expand((layer) => layer.masks)
+          .length;
+
+      expect(maskCount, 6);
+    });
+
     test('when a layer entry is not an object, it should report the failing JSON path', () {
       const source = '''
 {"v":"5.7.0","fr":30,"w":100,"h":100,"ip":0,"op":30,"layers":[false]}
@@ -219,7 +348,7 @@ void main() {
       expect(result.warnings, isEmpty);
     });
 
-    test('when parsing a Lottie JSON with a non-shape layer, it should skip it with a warning', () {
+    test('when parsing a Lottie JSON with an unsupported layer, it should skip it with a warning', () {
       final json = jsonEncode({
         'v': '5.5.2',
         'fr': 30,
@@ -227,11 +356,11 @@ void main() {
         'h': 100,
         'ip': 0,
         'op': 30,
-        'nm': 'With Null Layer',
+        'nm': 'With Solid Layer',
         'layers': [
           <String, dynamic>{
-            'ty': 0,
-            'nm': 'Null Layer',
+            'ty': 1,
+            'nm': 'Solid Layer',
             'ip': 0,
             'op': 30,
             'ks': <String, dynamic>{},
@@ -266,7 +395,7 @@ void main() {
       final result = LottieParser.parse(json);
 
       expect(
-        (result.animation.layers.length, result.warnings.length, result.warnings.first.contains('Null Layer')),
+        (result.animation.layers.length, result.warnings.length, result.warnings.first.contains('Solid Layer')),
         (1, 1, true),
       );
     });
@@ -949,6 +1078,149 @@ void main() {
   });
 
   group('LottieParser error cases', () {
+    test('when precomposition asset ids are duplicated, it should reject the ambiguous references', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'assets': [
+          {'id': 'shared', 'w': 100, 'h': 100, 'layers': <Object?>[]},
+          {'id': 'shared', 'w': 100, 'h': 100, 'layers': <Object?>[]},
+        ],
+        'layers': <Object?>[],
+      });
+
+      expect(
+        () => LottieParser.parse(json),
+        throwsA(
+          isA<DotdartInvalidLottieException>().having((error) => error.message, 'message', contains('duplicate id')),
+        ),
+      );
+    });
+
+    test('when precompositions reference each other recursively, it should reject the cycle', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'assets': [
+          {
+            'id': 'a',
+            'w': 100,
+            'h': 100,
+            'layers': [
+              {'ty': 0, 'refId': 'b'},
+            ],
+          },
+          {
+            'id': 'b',
+            'w': 100,
+            'h': 100,
+            'layers': [
+              {'ty': 0, 'refId': 'a'},
+            ],
+          },
+        ],
+        'layers': <Object?>[],
+      });
+
+      expect(
+        () => LottieParser.parse(json),
+        throwsA(isA<DotdartInvalidLottieException>().having((error) => error.message, 'message', contains('cycle'))),
+      );
+    });
+
+    test('when a mask has partial opacity, it should reject the unsupported mask transfer', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'layers': [
+          {
+            'ty': 4,
+            'nm': 'Masked',
+            'masksProperties': [
+              {
+                'mode': 'a',
+                'inv': false,
+                'pt': {
+                  'a': 0,
+                  'k': {
+                    'c': true,
+                    'v': [
+                      [0, 0],
+                      [10, 0],
+                      [10, 10],
+                    ],
+                    'i': [
+                      [0, 0],
+                      [0, 0],
+                      [0, 0],
+                    ],
+                    'o': [
+                      [0, 0],
+                      [0, 0],
+                      [0, 0],
+                    ],
+                  },
+                },
+                'o': {'a': 0, 'k': 50},
+                'x': {'a': 0, 'k': 0},
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(
+        () => LottieParser.parse(json),
+        throwsA(
+          isA<DotdartUnsupportedFeatureException>().having((error) => error.message, 'message', contains('opacity')),
+        ),
+      );
+    });
+
+    test('when a precomposition uses time remapping, it should reject the unsupported timeline', () {
+      final json = jsonEncode({
+        'v': '5.7.0',
+        'fr': 30,
+        'w': 100,
+        'h': 100,
+        'ip': 0,
+        'op': 30,
+        'assets': [
+          {'id': 'child', 'w': 100, 'h': 100, 'layers': <Object?>[]},
+        ],
+        'layers': [
+          {
+            'ty': 0,
+            'refId': 'child',
+            'tm': {'a': 0, 'k': 0},
+          },
+        ],
+      });
+
+      expect(
+        () => LottieParser.parse(json),
+        throwsA(
+          isA<DotdartUnsupportedFeatureException>().having(
+            (error) => error.message,
+            'message',
+            contains('time remapping'),
+          ),
+        ),
+      );
+    });
+
     test('when the root JSON is not a Map, it should throw an invalid Lottie error', () {
       expect(() => LottieParser.parse(jsonEncode([])), throwsA(isA<DotdartInvalidLottieException>()));
     });

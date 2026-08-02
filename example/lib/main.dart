@@ -33,7 +33,35 @@ class DotdartExamplePage extends StatelessWidget {
             child: $Icons.cross(width: 64, color1: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 16),
-          _ExampleCard(label: 'Lottie compiled to CustomPainter', child: $Lotties.pulse(width: 96)),
+          _ExampleCard(
+            label: 'Lottie compiled to CustomPainter',
+            child: $Lotties.pulse(
+              width: 96,
+              overrides: PulseOverrides(fixtureColor: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _ExampleCard(
+            label: 'Editable Lottie text and named colors',
+            child: Center(
+              child: $Lotties.cataquiJobCardsCarousel(
+                clip: false,
+                overrides: const CataquiJobCardsCarouselOverrides(
+                  // postedTimeText: 'Agora',
+                  // jobTitleText: 'Garçom para evento',
+                  // jobTitleText2: 'Cozinheiro para jantar',
+                  // jobTitleText3: 'Auxiliar de montagem',
+                  // jobTitleText4: 'Recepcionista de evento',
+                  // jobTitleText5: 'Fotógrafo por diária',
+                  // jobTitleText6: 'Bartender para festa',
+                  // payText: 'EUR 200/dia',
+                  // payText2: 'TTT 33',
+                  // descriptionText: 'Trabalho por três dias em um evento. Experiência com atendimento é bem-vinda.',
+                  // payTextColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           _ExampleCard(label: 'Image with generated metadata', child: $Images.cataqui(width: 96)),
         ],

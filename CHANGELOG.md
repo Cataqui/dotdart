@@ -1,3 +1,41 @@
+## 0.7.0
+
+- Updated package metadata, documentation, contribution, support links, and
+  example application identifiers for the transfer to the Ventairy
+  organization.
+- Added Lottie precomposition layers, static editable text layers, and static
+  additive masks.
+- Added parented Lottie layer transforms and null controller layers, preserving
+  orbit and other hierarchical motion from the source animation.
+- Generated Lottie accessors now expose nullable `String` fields for text
+  layers through a generated `overrides` object. Passing a value replaces the
+  text stored in the Lottie document.
+- Repeated named Lottie layers now receive numbered override fields instead of
+  sharing one override, so each layer can be customized independently.
+- Corrected Lottie shape-group stacking so background shapes no longer cover
+  map and illustration groups above them.
+- Added a `clip` parameter to generated Lottie accessors. It defaults to `true`
+  to clip painting to the Lottie canvas; pass `false` to allow overflow.
+- Reduced generated Lottie frame work by omitting non-rendering controller
+  layers, sharing safe timeline guards, and precomputing canvas geometry and
+  text paint offsets outside the paint loop.
+- Fixed automatic Lottie playback resuming after app lifecycle or
+  reduced-motion pauses by keeping the painter attached to its stopped
+  controller.
+- Hardened Lottie generation by rejecting duplicate or cyclic precompositions,
+  invalid non-composition references, unsupported time remapping and mask
+  transfer values, and by safely escaping source-breaking layer and text
+  content.
+- Combined multiple fully opaque additive masks before clipping instead of
+  intersecting them one at a time.
+- **BREAKING:** Lottie text and color values now live under each accessor's
+  generated `overrides` object. Named text fields end in `Text`, such as
+  `jobTitleText` and `jobTitleTextColor`; names already ending in `Text` are not
+  changed twice. Other named fields include values such as
+  `miamiArtworkColor1`. Unnamed layers retain predictable `text1`, `color1`,
+  and later fallbacks. Move old direct arguments into the generated overrides
+  class using the field shown by Dart analysis or generated API completion.
+
 ## 0.6.2
 
 - Stopped committing the package lockfile so dependency-range compatibility is

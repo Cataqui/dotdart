@@ -23,9 +23,9 @@ class LottieGenerator {
   /// Returns the constructor parameters of the generated widget.
   ///
   /// Used by `NamespaceAssembler` to emit matching accessor methods.
-  List<AccessorParam> get params => _paramsFor(_extractColors());
+  List<AccessorParam> get params => _paramsFor(_customizations());
 
-  List<AccessorParam> _paramsFor(List<_ColorEntry> colors) {
+  List<AccessorParam> _paramsFor(_CustomizationPlan customizations) {
     final result = <AccessorParam>[
       const AccessorParam(name: 'key', type: 'Key?'),
       const AccessorParam(name: 'width', type: 'double?', documentation: 'Width in logical pixels.'),
@@ -39,6 +39,12 @@ class LottieGenerator {
             'requested value as the reference. When false, both dimensions are applied as-is and '
             'the asset may distort.',
       ),
+      const AccessorParam(
+        name: 'clip',
+        type: 'bool',
+        defaultValue: 'true',
+        documentation: 'Whether painting is clipped to the Lottie canvas bounds.',
+      ),
       const AccessorParam(name: 'progress', type: 'double?', documentation: 'Fixed animation progress from 0 to 1.'),
       const AccessorParam(
         name: 'respectDisableAnimations',
@@ -47,12 +53,13 @@ class LottieGenerator {
         documentation: 'Whether reduced-motion settings pause playback.',
       ),
     ];
-    for (final color in colors) {
+    if (_hasOverrides(customizations)) {
       result.add(
         AccessorParam(
-          name: 'color${color.index}',
-          type: 'Color?',
-          documentation: 'Color ${color.index} — defaults to ${_colorToHex(color.r, color.g, color.b, color.a)}.',
+          name: 'overrides',
+          type: _overridesClassName,
+          defaultValue: 'const $_overridesClassName()',
+          documentation: 'Text and color values that replace defaults from the Lottie file.',
         ),
       );
     }
@@ -65,10 +72,11 @@ class LottieGenerator {
   /// formats the combined file.
   String generateWidgetClass() {
     final b = StringBuffer();
-    final colors = _extractColors();
-    _writeWidgetClass(b, colors);
-    _writeStateClass(b, colors);
-    _writePainterClass(b, colors);
+    final customizations = _customizations();
+    _writeOverridesClass(b, customizations);
+    _writeWidgetClass(b, customizations);
+    _writeStateClass(b, customizations);
+    _writePainterClass(b, customizations);
     return b.toString();
   }
 
@@ -78,41 +86,173 @@ class LottieGenerator {
   /// The PascalCase name without the private `_` prefix — used for inner classes.
   String get _baseName => Naming.widgetClassName(sourcePath);
 
-  // ── Color extraction ──
+  String get _overridesClassName => '${_baseName}Overrides';
 
-  List<_ColorEntry> _extractColors() {
-    final seen = <String>{};
-    final colors = <_ColorEntry>[];
-    var index = 0;
+  // ── Layer and customization extraction ──
 
-    void add(double r, double g, double b, double a) {
-      final key = '$r,$g,$b,$a';
-      if (seen.contains(key)) return;
-      seen.add(key);
-      index++;
-      colors.add(_ColorEntry(index: index, r: r, g: g, b: b, a: a));
+  List<_LayerEntry> get _layers {
+    final result = <_LayerEntry>[];
+    for (final layer in animation.layers) {
+      result.add((index: result.length, layer: layer, compositionId: null));
+    }
+    for (final composition in animation.compositions.values) {
+      for (final layer in composition.layers) {
+        result.add(
+          (
+            index: result.length,
+            layer: layer,
+            compositionId: composition.id,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  List<_LayerEntry> _parentEntries(_LayerEntry entry) {
+    final scopedLayers = _layers.where((candidate) => candidate.compositionId == entry.compositionId);
+    final layersBySourceIndex = <int, _LayerEntry>{
+      for (final candidate in scopedLayers)
+        if (candidate.layer.layerIndex != null) candidate.layer.layerIndex!: candidate,
+    };
+    final parents = <_LayerEntry>[];
+    var parentIndex = entry.layer.parentIndex;
+    while (parentIndex != null) {
+      final parent = layersBySourceIndex[parentIndex];
+      if (parent == null) {
+        throw StateError('Missing parsed Lottie parent layer $parentIndex for "${entry.layer.name}".');
+      }
+      parents.add(parent);
+      parentIndex = parent.layer.parentIndex;
+    }
+    return parents.reversed.toList();
+  }
+
+  _CustomizationPlan _customizations() {
+    final textParams = <_TextParam>[];
+    final colorParams = <_ColorParam>[];
+    final textByLayer = <int, _TextParam>{};
+    final colorByShape = <LottieShape, _ColorParam>{};
+    final colorByTextLayer = <int, _ColorParam>{};
+    final usedNames = <String>{
+      'key',
+      'width',
+      'height',
+      'maintainAspectRatio',
+      'clip',
+      'progress',
+      'respectDisableAnimations',
+      'overrides',
+    };
+    var genericTextIndex = 0;
+    var genericColorIndex = 0;
+
+    for (final entry in _layers) {
+      final text = entry.layer.text;
+      if (text == null) continue;
+      final named = _textParameterName(entry.layer.name);
+      final candidate = named ?? 'text${++genericTextIndex}';
+      final param = (
+        name: _availableName(candidate, usedNames),
+        layerName: entry.layer.name.isEmpty ? 'unnamed text' : entry.layer.name,
+      );
+      textParams.add(param);
+      textByLayer[entry.index] = param;
     }
 
-    for (final layer in animation.layers) {
+    for (final entry in _layers) {
+      final layer = entry.layer;
+      final text = layer.text;
+      if (text != null) {
+        final textParam = textByLayer[entry.index]!;
+        final hasNamedLayer = _parameterName(layer.name) != null;
+        final candidate = hasNamedLayer ? '${textParam.name}Color' : 'color${++genericColorIndex}';
+        final param = (
+          name: _availableName(candidate, usedNames),
+          layerName: layer.name.isEmpty ? 'unnamed text' : layer.name,
+        );
+        colorParams.add(param);
+        colorByTextLayer[entry.index] = param;
+      }
+
+      final coloredShapes = <String, List<LottieShape>>{};
       for (final group in layer.shapeGroups) {
         for (final item in group.items) {
-          if (item is LottieFill) {
-            add(item.colorR, item.colorG, item.colorB, item.colorA);
-          } else if (item is LottieStroke) {
-            add(item.colorR, item.colorG, item.colorB, item.colorA);
-          }
+          final key = switch (item) {
+            LottieFill() => '${item.colorR},${item.colorG},${item.colorB},${item.colorA}',
+            LottieStroke() => '${item.colorR},${item.colorG},${item.colorB},${item.colorA}',
+            _ => null,
+          };
+          if (key != null) coloredShapes.putIfAbsent(key, () => []).add(item);
+        }
+      }
+      final layerName = _parameterName(layer.name);
+      final shapeColorGroups = coloredShapes.values.toList();
+      for (var index = 0; index < shapeColorGroups.length; index++) {
+        final shapes = shapeColorGroups[index];
+        final candidate = layerName == null
+            ? 'color${++genericColorIndex}'
+            : '$layerName'
+                  'Color${shapeColorGroups.length == 1 ? '' : index + 1}';
+        final param = (
+          name: _availableName(candidate, usedNames),
+          layerName: layer.name.isEmpty ? 'unnamed shape' : layer.name,
+        );
+        colorParams.add(param);
+        for (final shape in shapes) {
+          colorByShape[shape] = param;
         }
       }
     }
 
-    return colors;
+    return (
+      textParams: textParams,
+      colorParams: colorParams,
+      textByLayer: textByLayer,
+      colorByShape: colorByShape,
+      colorByTextLayer: colorByTextLayer,
+    );
+  }
+
+  String? _parameterName(String layerName) {
+    final words = layerName.split(RegExp('[^A-Za-z0-9]+')).where((word) => word.isNotEmpty).toList();
+    if (words.isEmpty || RegExp('^[0-9]').hasMatch(words.first)) return null;
+    final name =
+        words.first.toLowerCase() +
+        words.skip(1).map((word) => '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}').join();
+    if (_dartReservedWords.contains(name)) return null;
+    return name;
+  }
+
+  String? _textParameterName(String layerName) {
+    final name = _parameterName(layerName);
+    if (name == null || name.toLowerCase().endsWith('text')) return name;
+    return '${name}Text';
+  }
+
+  bool _hasOverrides(_CustomizationPlan customizations) {
+    return customizations.textParams.isNotEmpty || customizations.colorParams.isNotEmpty;
+  }
+
+  bool _hasPainterResources(_CustomizationPlan customizations) {
+    return customizations.textByLayer.isNotEmpty;
+  }
+
+  String _availableName(String candidate, Set<String> usedNames) {
+    if (usedNames.add(candidate)) return candidate;
+    var suffix = 2;
+    while (!usedNames.add('$candidate$suffix')) {
+      suffix++;
+    }
+    return '$candidate$suffix';
   }
 
   List<_CurveEntry> _extractCurves() {
     final curves = <_CurveEntry>[];
     final seen = <String>{};
 
-    for (final layer in animation.layers) {
+    for (final entry in _layers) {
+      final layer = entry.layer;
       final properties = [layer.opacity, layer.rotation, layer.positionX, layer.positionY, layer.scaleX, layer.scaleY];
       for (final property in properties) {
         if (property == null || !_hasAnimatedValue(property)) continue;
@@ -127,7 +267,7 @@ class LottieGenerator {
           final key = '${keyframe.outX},${keyframe.outY},${keyframe.inX},${keyframe.inY}';
           if (!seen.add(key)) continue;
           curves.add(
-            _CurveEntry(
+            (
               index: curves.length,
               outX: keyframe.outX!,
               outY: keyframe.outY!,
@@ -143,7 +283,8 @@ class LottieGenerator {
   }
 
   bool _usesShape<T extends LottieShape>() {
-    for (final layer in animation.layers) {
+    for (final entry in _layers) {
+      final layer = entry.layer;
       for (final group in layer.shapeGroups) {
         for (final item in group.items) {
           if (item is T) return true;
@@ -156,9 +297,38 @@ class LottieGenerator {
 
   // ── Widget class ──
 
-  void _writeWidgetClass(StringBuffer b, List<_ColorEntry> colors) {
+  void _writeOverridesClass(StringBuffer b, _CustomizationPlan customizations) {
+    if (!_hasOverrides(customizations)) return;
+
+    b.writeln('/// Text and color values that replace defaults in `${_dartDocText(sourcePath.split('/').last)}`.');
+    b.writeln('final class $_overridesClassName {');
+    b.writeln('  /// Creates Lottie value overrides.');
+    b.writeln('  const $_overridesClassName({');
+    for (final text in customizations.textParams) {
+      b.writeln('    this.${text.name},');
+    }
+    for (final color in customizations.colorParams) {
+      b.writeln('    this.${color.name},');
+    }
+    b.writeln('  });');
+    b.writeln();
+    for (final text in customizations.textParams) {
+      b.writeln('  /// Replacement text for the `${_dartDocText(text.layerName)}` Lottie layer.');
+      b.writeln('  final String? ${text.name};');
+      b.writeln();
+    }
+    for (final color in customizations.colorParams) {
+      b.writeln('  /// Replacement color for the `${_dartDocText(color.layerName)}` Lottie layer.');
+      b.writeln('  final Color? ${color.name};');
+      b.writeln();
+    }
+    b.writeln('}');
+    b.writeln();
+  }
+
+  void _writeWidgetClass(StringBuffer b, _CustomizationPlan customizations) {
     final className = widgetClassName;
-    b.writeln('/// A dotdart-generated animated widget from `$sourcePath`.');
+    b.writeln('/// A dotdart-generated animated widget from `${_dartDocText(sourcePath)}`.');
     b.writeln('///');
     b.writeln('/// Renders a ${animation.durationMs}ms looping animation');
     b.writeln('/// (${animation.totalFrames} frames at ${animation.frameRate}Hz)');
@@ -167,7 +337,7 @@ class LottieGenerator {
     b.writeln('/// entirely via [CustomPainter].');
     b.writeln('class $className extends StatefulWidget {');
     b.writeln('  const $className({');
-    final widgetParams = _paramsFor(colors);
+    final widgetParams = _paramsFor(customizations);
     for (final param in widgetParams) {
       b.writeln('    ${param.constructorInitializer},');
     }
@@ -194,13 +364,18 @@ class LottieGenerator {
 
   // ── State class ──
 
-  void _writeStateClass(StringBuffer b, List<_ColorEntry> colors) {
+  void _writeStateClass(StringBuffer b, _CustomizationPlan customizations) {
     final className = widgetClassName;
     final baseName = _baseName;
+    final hasPainterResources = _hasPainterResources(customizations);
     b.writeln('class _$baseName' + 'State extends State<$className>');
     b.writeln('    with SingleTickerProviderStateMixin, WidgetsBindingObserver,');
     b.writeln('        _DotdartLottieAnimationState<$className> {');
     b.writeln();
+    if (hasPainterResources) {
+      b.writeln('  _$baseName' + 'Painter? _painter;');
+      b.writeln();
+    }
     b.writeln('  @override');
     b.writeln('  double? get lottieWidgetWidth => widget.width;');
     b.writeln();
@@ -228,55 +403,87 @@ class LottieGenerator {
 
     b.writeln('  @override');
     b.writeln('  Widget buildPainter({required double width, required double height}) {');
-    b.writeln('    return SizedBox.fromSize(');
-    b.writeln('      size: Size(width, height),');
-    b.writeln('      child: RepaintBoundary(');
-    b.writeln('        child: CustomPaint(');
-    b.writeln('          painter: _$baseName' + 'Painter(');
-    b.writeln('            animationProgress: _shouldAnimate() ? _controller : null,');
-    b.writeln('            fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),');
-
-    for (final color in colors) {
-      final hex = _colorToHex(color.r, color.g, color.b, color.a);
-      b.writeln('            color${color.index}: widget.color${color.index} ?? const Color($hex),');
+    final painterIndent = hasPainterResources ? '    ' : '          ';
+    if (!hasPainterResources) {
+      b.writeln('    return SizedBox.fromSize(');
+      b.writeln('      size: Size(width, height),');
+      b.writeln('      child: RepaintBoundary(');
+      b.writeln('        child: CustomPaint(');
+      b.writeln('          painter: _$baseName' + 'Painter(');
+    } else {
+      b.writeln('    final painter = _$baseName' + 'Painter(');
+    }
+    b.writeln('$painterIndent  animationProgress: widget.progress == null ? _controller : null,');
+    b.writeln('$painterIndent  fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),');
+    b.writeln('$painterIndent  canvasScaleX: width / $className._lottieWidth,');
+    b.writeln('$painterIndent  canvasScaleY: height / $className._lottieHeight,');
+    b.writeln('$painterIndent  canvasRect: Rect.fromLTWH(0, 0, width, height),');
+    b.writeln('$painterIndent  clip: widget.clip,');
+    if (_hasOverrides(customizations)) {
+      b.writeln('$painterIndent  overrides: widget.overrides,');
     }
 
-    b.writeln('          ),');
+    if (!hasPainterResources) {
+      b.writeln('          ),');
+    } else {
+      b.writeln('    );');
+      b.writeln('    _painter?.disposeResources();');
+      b.writeln('    _painter = painter;');
+      b.writeln('    return SizedBox.fromSize(');
+      b.writeln('      size: Size(width, height),');
+      b.writeln('      child: RepaintBoundary(');
+      b.writeln('        child: CustomPaint(');
+      b.writeln('          painter: painter,');
+    }
     b.writeln('          size: Size(width, height),');
     b.writeln('        ),');
     b.writeln('      ),');
     b.writeln('    );');
     b.writeln('  }');
+    if (hasPainterResources) {
+      b.writeln();
+      b.writeln('  @override');
+      b.writeln('  void dispose() {');
+      b.writeln('    _painter?.disposeResources();');
+      b.writeln('    super.dispose();');
+      b.writeln('  }');
+    }
     b.writeln('}');
     b.writeln();
   }
 
   // ── Painter class ──
 
-  void _writePainterClass(StringBuffer b, List<_ColorEntry> colors) {
+  void _writePainterClass(StringBuffer b, _CustomizationPlan customizations) {
     final className = widgetClassName;
     final baseName = _baseName;
     final curves = _extractCurves();
     b.writeln('class _$baseName' + 'Painter extends CustomPainter {');
     b.writeln('  _$baseName' + 'Painter({');
     b.writeln('    required this._fixedProgress,');
-
-    for (final color in colors) {
-      b.writeln('    required this.color${color.index},');
+    b.writeln('    required this._canvasScaleX,');
+    b.writeln('    required this._canvasScaleY,');
+    b.writeln('    required this._canvasRect,');
+    b.writeln('    required this.clip,');
+    if (_hasOverrides(customizations)) {
+      b.writeln('    required this.overrides,');
     }
     b.writeln('    this._animationProgress,');
     b.writeln('  }) : super(repaint: _animationProgress);');
     b.writeln();
 
     b.writeln('  final double _fixedProgress;');
+    b.writeln('  final double _canvasScaleX;');
+    b.writeln('  final double _canvasScaleY;');
+    b.writeln('  final Rect _canvasRect;');
     b.writeln('  final Animation<double>? _animationProgress;');
     b.writeln();
-
-    // Color fields
-    for (final color in colors) {
-      b.writeln('  final Color color${color.index};');
-    }
+    b.writeln('  final bool clip;');
     b.writeln();
+    if (_hasOverrides(customizations)) {
+      b.writeln('  final $_overridesClassName overrides;');
+      b.writeln();
+    }
     if (_usesShape<LottieFill>()) {
       b.writeln('  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;');
     }
@@ -291,6 +498,7 @@ class LottieGenerator {
     // ── Path data ──
     _writeGeometryData(b);
     _writePathData(b);
+    _writeTextPainterData(b, customizations);
 
     // ── Keyframe evaluation helpers ──
     _writeEvalHelpers(b, curves);
@@ -299,17 +507,25 @@ class LottieGenerator {
     b.writeln('  @override');
     b.writeln('  void paint(Canvas canvas, Size size) {');
     b.writeln('    final progress = _animationProgress?.value ?? _fixedProgress;');
-    b.writeln('    final frame = progress * $className._totalFrames;');
-    b.writeln('    final scaleX = size.width / $className._lottieWidth;');
-    b.writeln('    final scaleY = size.height / $className._lottieHeight;');
+    final frameExpression = animation.inPoint == 0
+        ? 'progress * $className._totalFrames'
+        : '${animation.inPoint} + progress * $className._totalFrames';
+    b.writeln('    final frame = $frameExpression;');
+    b.writeln('    if (frame >= ${animation.outPoint}) return;');
     b.writeln();
-    b.writeln('    canvas..save()..scale(scaleX, scaleY);');
+    b.writeln('    canvas.save();');
+    b.writeln('    if (clip) canvas.clipRect(_canvasRect);');
+    b.writeln('    canvas.scale(_canvasScaleX, _canvasScaleY);');
     b.writeln();
 
-    for (var i = animation.layers.length - 1; i >= 0; i--) {
-      final layer = animation.layers[i];
-      final methodName = _sanitizeMethodName('draw_${layer.name}_$i');
-      b.writeln('    _$methodName(canvas, frame);');
+    final rootLayers = _layers
+        .where((entry) => entry.compositionId == null && _isRenderableLayer(entry.layer))
+        .toList();
+    for (var i = rootLayers.length - 1; i >= 0; i--) {
+      final entry = rootLayers[i];
+      final layer = entry.layer;
+      final methodName = _sanitizeMethodName('draw_${layer.name}_${entry.index}');
+      b.writeln('    _$methodName(canvas, frame, 1);');
     }
 
     b.writeln();
@@ -318,22 +534,33 @@ class LottieGenerator {
     b.writeln();
 
     // ── Draw methods per layer ──
-    for (var i = 0; i < animation.layers.length; i++) {
-      _writeDrawMethod(b, animation.layers[i], i, colors);
+    for (final entry in _layers.where((entry) => _isRenderableLayer(entry.layer))) {
+      _writeDrawMethod(b, entry, customizations);
     }
 
     // ── shouldRepaint ──
     b.writeln('  @override');
     b.writeln('  bool shouldRepaint(covariant _$baseName' + 'Painter oldDelegate) {');
     b.writeln('    return oldDelegate._fixedProgress != _fixedProgress');
+    b.writeln('        || oldDelegate._canvasScaleX != _canvasScaleX');
+    b.writeln('        || oldDelegate._canvasScaleY != _canvasScaleY');
+    b.writeln('        || oldDelegate._canvasRect != _canvasRect');
     b.writeln('        || oldDelegate._animationProgress != _animationProgress');
-
-    for (final color in colors) {
-      b.writeln('        || oldDelegate.color${color.index} != color${color.index}');
+    b.writeln('        || oldDelegate.clip != clip');
+    if (_hasOverrides(customizations)) {
+      b.writeln('        || oldDelegate.overrides != overrides');
     }
 
     b.writeln(';');
     b.writeln('  }');
+    if (_hasPainterResources(customizations)) {
+      b.writeln();
+      b.writeln('  void disposeResources() {');
+      for (final layerIndex in customizations.textByLayer.keys) {
+        b.writeln('    _textPainter$layerIndex?.dispose();');
+      }
+      b.writeln('  }');
+    }
     b.writeln('}');
     b.writeln();
   }
@@ -341,8 +568,9 @@ class LottieGenerator {
   // ── Keyframe data emission ──
 
   void _writeKeyframeData(StringBuffer b, List<_CurveEntry> curves) {
-    for (var i = 0; i < animation.layers.length; i++) {
-      final layer = animation.layers[i];
+    for (final entry in _layers) {
+      final i = entry.index;
+      final layer = entry.layer;
       final prefix = '_keyframes$i';
 
       _writeScalarKeyframes(b, '${prefix}Opacity', layer.opacity, curves);
@@ -410,11 +638,12 @@ class LottieGenerator {
   // ── Path data emission ──
 
   void _writeGeometryData(StringBuffer b) {
-    for (var layerIndex = 0; layerIndex < animation.layers.length; layerIndex++) {
-      final layer = animation.layers[layerIndex];
+    for (final entry in _layers) {
+      final layerIndex = entry.index;
+      final layer = entry.layer;
       for (var groupIndex = 0; groupIndex < layer.shapeGroups.length; groupIndex++) {
         final parts = _groupParts(layer.shapeGroups[groupIndex]);
-        final compoundFill = parts.fill != null && parts.fill!.fillRule == 2;
+        final compoundFill = _canUseCompoundFill(fill: parts.fill, shapes: parts.shapes);
         final compoundStroke = _canUseCompoundStroke(fill: parts.fill, stroke: parts.stroke, shapes: parts.shapes);
         if ((compoundFill || parts.fill == null) && (compoundStroke || parts.stroke == null)) continue;
 
@@ -438,8 +667,9 @@ class LottieGenerator {
   }
 
   void _writePathData(StringBuffer b) {
-    for (var layerIdx = 0; layerIdx < animation.layers.length; layerIdx++) {
-      final layer = animation.layers[layerIdx];
+    for (final entry in _layers) {
+      final layerIdx = entry.index;
+      final layer = entry.layer;
       for (var groupIdx = 0; groupIdx < layer.shapeGroups.length; groupIdx++) {
         final group = layer.shapeGroups[groupIdx];
         var shapeIndex = 0;
@@ -452,13 +682,87 @@ class LottieGenerator {
           }
         }
       }
+      for (var maskIndex = 0; maskIndex < layer.masks.length; maskIndex++) {
+        _writePathDeclaration(
+          b,
+          '_maskPath${layerIdx}_$maskIndex',
+          layer.masks[maskIndex],
+        );
+      }
+      if (layer.masks.length > 1) {
+        var combinedPath = '__maskPath${layerIdx}_0';
+        for (var maskIndex = 1; maskIndex < layer.masks.length; maskIndex++) {
+          combinedPath = 'Path.combine(PathOperation.union, $combinedPath, __maskPath${layerIdx}_$maskIndex)';
+        }
+        b.writeln('  static final Path __maskPath$layerIdx = $combinedPath;');
+        b.writeln();
+      }
     }
 
     _writeCompoundPathData(b);
   }
 
+  void _writeTextPainterData(
+    StringBuffer b,
+    _CustomizationPlan customizations,
+  ) {
+    for (final entry in _layers) {
+      final text = entry.layer.text;
+      if (text == null) continue;
+      final textParam = customizations.textByLayer[entry.index]!;
+      final maxLines = text.boxHeight == null ? null : (text.boxHeight! / text.lineHeight).floor().clamp(1, 1000000);
+      b.writeln('  TextPainter? _textPainter${entry.index};');
+      b.writeln('  Color? _textPainter${entry.index}Color;');
+      if (text.boxHeight == null) {
+        b.writeln('  Offset _textPainter${entry.index}Offset = Offset.zero;');
+      }
+      b.writeln();
+      b.writeln('  TextPainter _textPainterFor${entry.index}(Color color) {');
+      b.writeln('    final cached = _textPainter${entry.index};');
+      b.writeln('    if (cached != null && _textPainter${entry.index}Color == color) return cached;');
+      b.writeln('    cached?.dispose();');
+      b.writeln('    _textPainter${entry.index}Color = color;');
+      b.writeln('    final painter = TextPainter(');
+      b.writeln('      text: TextSpan(');
+      b.writeln('        text: overrides.${textParam.name} ?? ${_dartString(text.value)},');
+      b.writeln('        style: TextStyle(');
+      b.writeln('          color: color,');
+      b.writeln('          fontFamily: ${_dartString(text.fontFamily)},');
+      b.writeln('          fontSize: ${_fmt(text.fontSize)},');
+      b.writeln('          fontWeight: FontWeight.w${text.fontWeight},');
+      if (text.italic) {
+        b.writeln('          fontStyle: FontStyle.italic,');
+      }
+      if (text.lineHeight != text.fontSize) {
+        b.writeln('          height: ${_fmt(text.lineHeight / text.fontSize)},');
+      }
+      if (text.tracking != 0) {
+        b.writeln('          letterSpacing: ${_fmt(text.tracking / 1000 * text.fontSize)},');
+      }
+      b.writeln('        ),');
+      b.writeln('      ),');
+      b.writeln('      textDirection: TextDirection.ltr,');
+      b.writeln('      textAlign: ${_textAlign(text.justification)},');
+      if (maxLines != null) b.writeln('      maxLines: $maxLines,');
+      b.writeln('    )..layout(maxWidth: ${text.boxWidth == null ? 'double.infinity' : _fmt(text.boxWidth!)});');
+      if (text.boxHeight == null) {
+        b.writeln(
+          '    _textPainter${entry.index}Offset = '
+          'Offset(0, -painter.computeDistanceToActualBaseline(TextBaseline.alphabetic));',
+        );
+      }
+      b.writeln('    return _textPainter${entry.index} = painter;');
+      b.writeln('  }');
+      b.writeln();
+    }
+  }
+
   void _writeSinglePath(StringBuffer b, int layerIdx, int groupIdx, int itemIdx, LottiePath path) {
     final name = '_path${layerIdx}_${groupIdx}_$itemIdx';
+    _writePathDeclaration(b, name, path);
+  }
+
+  void _writePathDeclaration(StringBuffer b, String name, LottiePath path) {
     final vertices = path.vertices;
     final inTangents = path.inTangents;
     final outTangents = path.outTangents;
@@ -505,11 +809,12 @@ class LottieGenerator {
   }
 
   void _writeCompoundPathData(StringBuffer b) {
-    for (var layerIndex = 0; layerIndex < animation.layers.length; layerIndex++) {
-      final layer = animation.layers[layerIndex];
+    for (final entry in _layers) {
+      final layerIndex = entry.index;
+      final layer = entry.layer;
       for (var groupIndex = 0; groupIndex < layer.shapeGroups.length; groupIndex++) {
         final parts = _groupParts(layer.shapeGroups[groupIndex]);
-        final compoundFill = parts.fill != null && parts.fill!.fillRule == 2;
+        final compoundFill = _canUseCompoundFill(fill: parts.fill, shapes: parts.shapes);
         final compoundStroke = _canUseCompoundStroke(fill: parts.fill, stroke: parts.stroke, shapes: parts.shapes);
         if (compoundFill) {
           _writeStaticCompoundPath(
@@ -518,7 +823,7 @@ class LottieGenerator {
             shapes: parts.shapes,
             layerIndex: layerIndex,
             groupIndex: groupIndex,
-            evenOdd: true,
+            evenOdd: parts.fill!.fillRule == 2,
           );
         }
         if (compoundStroke) {
@@ -582,9 +887,19 @@ class LottieGenerator {
 
   // ── Draw method per layer ──
 
-  void _writeDrawMethod(StringBuffer b, LottieLayer layer, int index, List<_ColorEntry> colors) {
+  void _writeDrawMethod(
+    StringBuffer b,
+    _LayerEntry entry,
+    _CustomizationPlan customizations,
+  ) {
+    final layer = entry.layer;
+    final index = entry.index;
+    final parents = _parentEntries(entry);
     final methodName = _sanitizeMethodName('draw_${layer.name}_$index');
-    b.writeln('  void _$methodName(Canvas canvas, double frame) {');
+    b.writeln('  void _$methodName(Canvas canvas, double frame, double inheritedOpacity) {');
+    if (layer.outPoint > layer.inPoint && !_hasCoveringParentVisibilityGuard(entry)) {
+      b.writeln('    if (frame < ${layer.inPoint} || frame >= ${layer.outPoint}) return;');
+    }
 
     // Evaluate animated properties
     final hasOpacity = _hasAnimatedValue(layer.opacity);
@@ -596,9 +911,9 @@ class LottieGenerator {
 
     final staticOpacity = _fmt(_staticScalarValue(layer.opacity, fallback: 100) / 100);
     if (hasOpacity) {
-      b.writeln('    final layerOpacity = _keyframes${index}Opacity(frame) / 100;');
+      b.writeln('    final layerOpacity = inheritedOpacity * _keyframes${index}Opacity(frame) / 100;');
     } else {
-      b.writeln('    const double layerOpacity = $staticOpacity;');
+      b.writeln('    final layerOpacity = inheritedOpacity * $staticOpacity;');
     }
     b.writeln('    if (layerOpacity <= 0) return;');
 
@@ -634,8 +949,12 @@ class LottieGenerator {
         _staticScalarValue(layer.scaleY, fallback: 100) != 100;
     final hasAnchor = (layer.anchorX ?? 0) != 0 || (layer.anchorY ?? 0) != 0;
     final hasTransform = hasTranslation || hasRotation || hasStaticRotation || hasScale || hasAnchor;
-    if (hasTransform) {
+    final needsRestore = parents.isNotEmpty || hasTransform || layer.masks.isNotEmpty || layer.referenceId != null;
+    if (needsRestore) {
       b.writeln('    canvas.save();');
+    }
+    for (final parent in parents) {
+      _writeParentTransform(b, parent);
     }
     if (hasTranslation) {
       b.writeln('    canvas.translate($posX, $posY);');
@@ -657,19 +976,121 @@ class LottieGenerator {
       b.writeln('    canvas.translate(${_fmt(-(layer.anchorX ?? 0))}, ${_fmt(-(layer.anchorY ?? 0))});');
     }
 
-    // Draw shape groups
-    for (var groupIndex = 0; groupIndex < layer.shapeGroups.length; groupIndex++) {
-      _writeDrawGroup(b, layer.shapeGroups[groupIndex], index, groupIndex, colors);
+    if (layer.masks.isNotEmpty) {
+      final maskPath = layer.masks.length == 1 ? '__maskPath${index}_0' : '__maskPath$index';
+      b.writeln('    canvas.clipPath($maskPath);');
     }
 
-    if (hasTransform) {
+    final referenceId = layer.referenceId;
+    if (referenceId != null) {
+      final composition = animation.compositions[referenceId]!;
+      b.writeln(
+        '    canvas.clipRect(const Rect.fromLTWH(0, 0, ${composition.width}, ${composition.height}));',
+      );
+      final childFrame = layer.startTime == 0 && layer.stretch == 1
+          ? 'frame'
+          : '(frame - ${_fmt(layer.startTime)}) / ${_fmt(layer.stretch)}';
+      final children = _layers
+          .where((child) => child.compositionId == referenceId && _isRenderableLayer(child.layer))
+          .toList();
+      for (var childIndex = children.length - 1; childIndex >= 0; childIndex--) {
+        final child = children[childIndex];
+        final childMethod = _sanitizeMethodName('draw_${child.layer.name}_${child.index}');
+        b.writeln('    _$childMethod(canvas, $childFrame, layerOpacity);');
+      }
+    } else if (layer.text != null) {
+      _writeDrawText(b, entry, customizations);
+    }
+
+    _writeShapeGroups(b, layer, index, customizations);
+
+    if (needsRestore) {
       b.writeln('    canvas.restore();');
     }
     b.writeln('  }');
     b.writeln();
   }
 
-  void _writeDrawGroup(StringBuffer b, LottieGroup group, int layerIndex, int groupIndex, List<_ColorEntry> colors) {
+  void _writeShapeGroups(
+    StringBuffer b,
+    LottieLayer layer,
+    int layerIndex,
+    _CustomizationPlan customizations,
+  ) {
+    for (var groupIndex = layer.shapeGroups.length - 1; groupIndex >= 0; groupIndex--) {
+      _writeDrawGroup(
+        b,
+        layer.shapeGroups[groupIndex],
+        layerIndex,
+        groupIndex,
+        customizations,
+      );
+    }
+  }
+
+  void _writeParentTransform(StringBuffer b, _LayerEntry entry) {
+    final layer = entry.layer;
+    final index = entry.index;
+    final positionX = _hasAnimatedValue(layer.positionX)
+        ? '_keyframes${index}PositionX(frame)'
+        : _staticOrZero(layer.positionX);
+    final positionY = _hasAnimatedValue(layer.positionY)
+        ? '_keyframes${index}PositionY(frame)'
+        : _staticOrZero(layer.positionY);
+    final rotation = _hasAnimatedValue(layer.rotation)
+        ? '_keyframes${index}Rotation(frame)'
+        : _fmt(_staticScalarValue(layer.rotation, fallback: 0));
+    final scaleX = _hasAnimatedValue(layer.scaleX)
+        ? '_keyframes${index}ScaleX(frame) / 100'
+        : _staticScaleOrOne(layer.scaleX);
+    final scaleY = _hasAnimatedValue(layer.scaleY)
+        ? '_keyframes${index}ScaleY(frame) / 100'
+        : _staticScaleOrOne(layer.scaleY);
+    final hasTranslation = positionX != '0' || positionY != '0';
+    final hasRotation = rotation != '0';
+    final hasScale = scaleX != '1' || scaleY != '1';
+    final hasAnchor = (layer.anchorX ?? 0) != 0 || (layer.anchorY ?? 0) != 0;
+
+    b.writeln('    // Parent transform: ${_dartDocText(layer.name)}');
+    if (hasTranslation) b.writeln('    canvas.translate($positionX, $positionY);');
+    if (hasRotation) b.writeln('    canvas.rotate($rotation * math.pi / 180);');
+    if (hasScale) b.writeln('    canvas.scale($scaleX, $scaleY);');
+    if (hasAnchor) {
+      b.writeln('    canvas.translate(${_fmt(-(layer.anchorX ?? 0))}, ${_fmt(-(layer.anchorY ?? 0))});');
+    }
+  }
+
+  void _writeDrawText(
+    StringBuffer b,
+    _LayerEntry entry,
+    _CustomizationPlan customizations,
+  ) {
+    final text = entry.layer.text!;
+    final color = customizations.colorByTextLayer[entry.index]!;
+    final defaultColor = _colorToHex(text.colorR, text.colorG, text.colorB, text.colorA);
+    b.writeln(
+      '    final textColor = _dotdartApplyOpacity(overrides.${color.name} ?? const Color($defaultColor), layerOpacity);',
+    );
+    b.writeln('    final textPainter = _textPainterFor${entry.index}(textColor);');
+    if (text.boxWidth != null && text.boxHeight != null) {
+      b.writeln('    canvas.save();');
+      b.writeln(
+        '    canvas.clipRect(const Rect.fromLTWH(0, 0, ${_fmt(text.boxWidth!)}, ${_fmt(text.boxHeight!)}));',
+      );
+      b.writeln('    textPainter.paint(canvas, Offset.zero);');
+      b.writeln('    canvas.restore();');
+      return;
+    }
+    b.writeln('    textPainter.paint(canvas, _textPainter${entry.index}Offset);');
+  }
+
+  void _writeDrawGroup(
+    StringBuffer b,
+    LottieGroup group,
+    int layerIndex,
+    int groupIndex,
+    _CustomizationPlan customizations,
+  ) {
     final parts = _groupParts(group);
     final fill = parts.fill;
     final stroke = parts.stroke;
@@ -709,13 +1130,13 @@ class LottieGenerator {
     }
 
     final groupOpacity = (transform?.opacity ?? 100) / 100;
-    final compoundFill = fill != null && fill.fillRule == 2;
+    final compoundFill = _canUseCompoundFill(fill: fill, shapes: shapes);
     final compoundStroke = _canUseCompoundStroke(fill: fill, stroke: stroke, shapes: shapes);
     if (compoundFill) {
-      _writeDrawCompoundFillPath(b, layerIndex, groupIndex, fill, colors, groupOpacity);
+      _writeDrawCompoundFillPath(b, layerIndex, groupIndex, fill!, customizations, groupOpacity);
     }
     if (compoundStroke) {
-      _writeDrawCompoundStrokePath(b, layerIndex, groupIndex, stroke!, colors, groupOpacity);
+      _writeDrawCompoundStrokePath(b, layerIndex, groupIndex, stroke!, customizations, groupOpacity);
     }
 
     for (var shapeIndex = 0; shapeIndex < shapes.length; shapeIndex++) {
@@ -723,11 +1144,11 @@ class LottieGenerator {
       final shapeFill = compoundFill ? null : fill;
       final shapeStroke = compoundStroke ? null : stroke;
       if (shape is LottieRect) {
-        _writeDrawRect(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, colors, groupOpacity);
+        _writeDrawRect(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, customizations, groupOpacity);
       } else if (shape is LottieEllipse) {
-        _writeDrawEllipse(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, colors, groupOpacity);
+        _writeDrawEllipse(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, customizations, groupOpacity);
       } else if (shape is LottiePath) {
-        _writeDrawPath(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, colors, groupOpacity);
+        _writeDrawPath(b, layerIndex, groupIndex, shapeIndex, shapeFill, shapeStroke, customizations, groupOpacity);
       }
     }
 
@@ -767,19 +1188,22 @@ class LottieGenerator {
     return fill == null && stroke != null && shapes.length > 1 && shapes.every((shape) => shape is LottiePath);
   }
 
+  bool _canUseCompoundFill({required LottieFill? fill, required List<LottieShape> shapes}) {
+    return fill != null && shapes.isNotEmpty && (fill.fillRule == 2 || shapes.length > 1);
+  }
+
   void _writeDrawCompoundFillPath(
     StringBuffer b,
     int layerIndex,
     int groupIndex,
     LottieFill fill,
-    List<_ColorEntry> colors,
+    _CustomizationPlan customizations,
     double groupOpacity,
   ) {
     final pathName = '_compoundFillPath${layerIndex}_$groupIndex';
     final paintName = 'compoundFillPaint$groupIndex';
-    final colorIdx = _colorIndexForFill(fill, colors);
     final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-    final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+    final colorRef = _colorReference(fill, customizations, 'layerOpacity * $opacity');
 
     b.writeln('    final $paintName = _fillPaint..color = $colorRef;');
 
@@ -791,16 +1215,15 @@ class LottieGenerator {
     int layerIndex,
     int groupIndex,
     LottieStroke stroke,
-    List<_ColorEntry> colors,
+    _CustomizationPlan customizations,
     double groupOpacity,
   ) {
     final pathName = '_compoundStrokePath${layerIndex}_$groupIndex';
     final paintName = 'compoundStrokePaint$groupIndex';
-    final colorIdx = _colorIndexForStroke(stroke, colors);
     final cap = _lineCap(stroke.lineCap);
     final join = _lineJoin(stroke.lineJoin);
     final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-    final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+    final colorRef = _colorReference(stroke, customizations, 'layerOpacity * $opacity');
 
     b.writeln(
       '    final $paintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -816,7 +1239,7 @@ class LottieGenerator {
     int shapeIndex,
     LottieFill? fill,
     LottieStroke? stroke,
-    List<_ColorEntry> colors,
+    _CustomizationPlan customizations,
     double groupOpacity,
   ) {
     if (fill == null && stroke == null) return;
@@ -827,20 +1250,18 @@ class LottieGenerator {
     final strokePaintName = 'strokePaint$suffix';
 
     if (fill != null) {
-      final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(fill, customizations, 'layerOpacity * $opacity');
       b
         ..writeln('    final $fillPaintName = _fillPaint..color = $colorRef;')
         ..writeln('    canvas.drawRRect($bodyName, $fillPaintName);');
     }
 
     if (stroke != null) {
-      final colorIdx = _colorIndexForStroke(stroke, colors);
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(stroke, customizations, 'layerOpacity * $opacity');
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -856,7 +1277,7 @@ class LottieGenerator {
     int shapeIndex,
     LottieFill? fill,
     LottieStroke? stroke,
-    List<_ColorEntry> colors,
+    _CustomizationPlan customizations,
     double groupOpacity,
   ) {
     if (fill == null && stroke == null) return;
@@ -866,20 +1287,18 @@ class LottieGenerator {
     final fillPaintName = 'fillPaint$suffix';
     final strokePaintName = 'strokePaint$suffix';
     if (fill != null) {
-      final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(fill, customizations, 'layerOpacity * $opacity');
       b
         ..writeln('    final $fillPaintName = _fillPaint..color = $colorRef;')
         ..writeln('    canvas.drawOval($rectName, $fillPaintName);');
     }
 
     if (stroke != null) {
-      final colorIdx = _colorIndexForStroke(stroke, colors);
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(stroke, customizations, 'layerOpacity * $opacity');
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -895,7 +1314,7 @@ class LottieGenerator {
     int shapeIndex,
     LottieFill? fill,
     LottieStroke? stroke,
-    List<_ColorEntry> colors,
+    _CustomizationPlan customizations,
     double groupOpacity,
   ) {
     if (fill == null && stroke == null) return;
@@ -907,9 +1326,8 @@ class LottieGenerator {
     final evenOddPathName = 'path$suffix';
 
     if (fill != null) {
-      final colorIdx = _colorIndexForFill(fill, colors);
       final opacity = _fmt(fill.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(fill, customizations, 'layerOpacity * $opacity');
       b.writeln('    final $fillPaintName = _fillPaint..color = $colorRef;');
       if (fill.fillRule == 2) {
         b
@@ -923,11 +1341,10 @@ class LottieGenerator {
     }
 
     if (stroke != null) {
-      final colorIdx = _colorIndexForStroke(stroke, colors);
       final cap = _lineCap(stroke.lineCap);
       final join = _lineJoin(stroke.lineJoin);
       final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
-      final colorRef = '_dotdartApplyOpacity(color$colorIdx, layerOpacity * $opacity)';
+      final colorRef = _colorReference(stroke, customizations, 'layerOpacity * $opacity');
       b
         ..writeln(
           '    final $strokePaintName = _strokePaint..color = $colorRef..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
@@ -989,20 +1406,68 @@ class LottieGenerator {
     throw StateError('Missing extracted Lottie easing curve.');
   }
 
-  int _colorIndexForFill(LottieFill fill, List<_ColorEntry> colors) {
-    final key = '${fill.colorR},${fill.colorG},${fill.colorB},${fill.colorA}';
-    for (final c in colors) {
-      if ('${c.r},${c.g},${c.b},${c.a}' == key) return c.index;
-    }
-    return 1;
+  String _colorReference(
+    LottieShape shape,
+    _CustomizationPlan customizations,
+    String opacity,
+  ) {
+    final color = customizations.colorByShape[shape]!;
+    final (r, g, b, a) = switch (shape) {
+      LottieFill() => (shape.colorR, shape.colorG, shape.colorB, shape.colorA),
+      LottieStroke() => (shape.colorR, shape.colorG, shape.colorB, shape.colorA),
+      _ => throw StateError('Only Lottie fills and strokes have customizable colors.'),
+    };
+    final defaultColor = _colorToHex(r, g, b, a);
+    return '_dotdartApplyOpacity(overrides.${color.name} ?? const Color($defaultColor), $opacity)';
   }
 
-  int _colorIndexForStroke(LottieStroke stroke, List<_ColorEntry> colors) {
-    final key = '${stroke.colorR},${stroke.colorG},${stroke.colorB},${stroke.colorA}';
-    for (final c in colors) {
-      if ('${c.r},${c.g},${c.b},${c.a}' == key) return c.index;
+  String _textAlign(int justification) {
+    switch (justification) {
+      case 0:
+        return 'TextAlign.left';
+      case 1:
+        return 'TextAlign.right';
+      case 2:
+        return 'TextAlign.center';
+      default:
+        return 'TextAlign.left';
     }
-    return 1;
+  }
+
+  String _dartString(String value) {
+    final hasSourceLineBreak = value.runes.any(
+      (rune) => rune == 0x0a || rune == 0x0d || rune == 0x2028 || rune == 0x2029,
+    );
+    if (value.contains(r'$') && !value.contains("'") && !hasSourceLineBreak) {
+      return "r'$value'";
+    }
+    if (value.contains(r'$') && !value.contains('"') && !hasSourceLineBreak) {
+      return 'r"$value"';
+    }
+    final escaped = StringBuffer("'");
+    for (final rune in value.runes) {
+      if (rune == 0x5c) {
+        escaped.write(r'\\');
+      } else if (rune == 0x27) {
+        escaped.write(r"\'");
+      } else if (rune == 0x24) {
+        escaped.write(r'\$');
+      } else if (rune < 0x20 || rune == 0x7f || rune == 0x2028 || rune == 0x2029) {
+        if (rune <= 0xffff) {
+          escaped.write('\\u${rune.toRadixString(16).padLeft(4, '0')}');
+        } else {
+          escaped.write('\\u{${rune.toRadixString(16)}}');
+        }
+      } else {
+        escaped.writeCharCode(rune);
+      }
+    }
+    escaped.write("'");
+    return escaped.toString();
+  }
+
+  String _dartDocText(String value) {
+    return value.replaceAll(RegExp(r'\s+'), ' ').replaceAll('`', r'\`').trim();
   }
 
   String _lineCap(int lc) {
@@ -1059,6 +1524,34 @@ class LottieGenerator {
     return false;
   }
 
+  bool _isRenderableLayer(LottieLayer layer) {
+    if (layer.referenceId != null || layer.text != null) return true;
+    for (final group in layer.shapeGroups) {
+      final parts = _groupParts(group);
+      if (parts.transform != null && parts.transform!.opacity <= 0) continue;
+      if (parts.shapes.isNotEmpty && (parts.fill != null || parts.stroke != null)) return true;
+    }
+    return false;
+  }
+
+  bool _hasCoveringParentVisibilityGuard(_LayerEntry entry) {
+    final layer = entry.layer;
+    if (entry.compositionId == null) {
+      return layer.inPoint == animation.inPoint && layer.outPoint == animation.outPoint;
+    }
+
+    final references = _layers.where((candidate) => candidate.layer.referenceId == entry.compositionId).toList();
+    if (references.isEmpty) return false;
+    for (final reference in references) {
+      final referenceLayer = reference.layer;
+      if (referenceLayer.outPoint <= referenceLayer.inPoint || referenceLayer.stretch <= 0) return false;
+      final firstChildFrame = (referenceLayer.inPoint - referenceLayer.startTime) / referenceLayer.stretch;
+      final lastChildFrame = (referenceLayer.outPoint - referenceLayer.startTime) / referenceLayer.stretch;
+      if (layer.inPoint > firstChildFrame || layer.outPoint < lastChildFrame) return false;
+    }
+    return true;
+  }
+
   double _staticScalarValue(LottieAnimatedScalar? animation, {required double fallback}) {
     if (animation == null) return fallback;
     if (!animation.animated || animation.keyframes.isEmpty) return animation.staticValue;
@@ -1076,27 +1569,84 @@ class LottieGenerator {
   }
 }
 
-class _ColorEntry {
-  const _ColorEntry({required this.index, required this.r, required this.g, required this.b, required this.a});
-  final int index;
-  final double r;
-  final double g;
-  final double b;
-  final double a;
-}
+typedef _LayerEntry = ({int index, LottieLayer layer, String? compositionId});
+typedef _TextParam = ({String name, String layerName});
+typedef _ColorParam = ({String name, String layerName});
+typedef _CustomizationPlan = ({
+  List<_TextParam> textParams,
+  List<_ColorParam> colorParams,
+  Map<int, _TextParam> textByLayer,
+  Map<LottieShape, _ColorParam> colorByShape,
+  Map<int, _ColorParam> colorByTextLayer,
+});
+typedef _CurveEntry = ({int index, double outX, double outY, double inX, double inY});
 
-class _CurveEntry {
-  const _CurveEntry({
-    required this.index,
-    required this.outX,
-    required this.outY,
-    required this.inX,
-    required this.inY,
-  });
-
-  final int index;
-  final double outX;
-  final double outY;
-  final double inX;
-  final double inY;
-}
+const _dartReservedWords = {
+  'abstract',
+  'as',
+  'assert',
+  'async',
+  'await',
+  'base',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'covariant',
+  'default',
+  'deferred',
+  'do',
+  'dynamic',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'extension',
+  'external',
+  'factory',
+  'false',
+  'final',
+  'finally',
+  'for',
+  'function',
+  'get',
+  'hide',
+  'if',
+  'implements',
+  'import',
+  'in',
+  'interface',
+  'is',
+  'late',
+  'library',
+  'mixin',
+  'new',
+  'null',
+  'of',
+  'on',
+  'operator',
+  'part',
+  'required',
+  'rethrow',
+  'return',
+  'sealed',
+  'set',
+  'show',
+  'static',
+  'super',
+  'switch',
+  'sync',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typedef',
+  'var',
+  'void',
+  'when',
+  'while',
+  'with',
+  'yield',
+};
