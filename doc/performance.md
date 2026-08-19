@@ -18,5 +18,9 @@ application does less work while rendering.
 - Intrinsic dimensions and dominant color are computed during generation.
 - Decode cache dimensions follow the requested display size.
 - Thumbhash placeholders are available on the first frame.
-- Namespace precaching is sequential to avoid concurrent decode spikes.
+- Per-asset cache methods can warm only the images needed for the next screen.
+- Matching removal methods release decoded entries after they are no longer
+  needed, instead of retaining full-screen image memory indefinitely.
+- Removal preserves live image entries, avoiding a duplicate decode when the
+  same image is still displayed during a transition.
 - Generated images use repaint boundaries to isolate expensive repaints.

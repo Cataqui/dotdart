@@ -1,3 +1,13 @@
+## 0.8.0
+
+- **BREAKING:** Replaced namespace-wide image and GIF precaching with generated
+  per-asset cache classes. Use
+  `$ImagesCache.precacheProfile(context, width: 160)` before rendering
+  `$Images.profile(width: 160)`, then call
+  `$ImagesCache.removeProfile(context, width: 160)` when that decoded image is
+  no longer needed. Omitting both dimensions uses the generated widget's
+  default display size, and removal preserves an image that is still live.
+
 ## 0.7.0
 
 - Updated package metadata, documentation, contribution, support links, and

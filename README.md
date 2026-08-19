@@ -45,8 +45,9 @@ dotdart at runtime.
   call site.
 - **No SVG or Lottie runtime renderer:** supported vectors and animations become
   ordinary `CustomPainter` code.
-- **Low-resource image defaults:** generated image and GIF widgets include decode sizing,
-  intrinsic metadata, a thumbhash placeholder, and sequential precaching.
+- **Low-resource image defaults:** generated image and GIF widgets include
+  decode sizing, intrinsic metadata, a thumbhash placeholder, and per-asset
+  cache controls.
 - **Build-time validation:** malformed configuration, unsupported content,
   duplicate inputs, naming collisions, and unsafe output paths fail early.
 - **Self-contained output:** generated libraries depend on Flutter, not dotdart.
@@ -107,7 +108,17 @@ final jobCards = $Lotties.jobCards(
   ),
 );
 final image = $Images.profile(width: 160);
+
+await $ImagesCache.precacheProfile(context, width: 160);
+// Render $Images.profile(width: 160), then release that decoded entry later.
+final removed = await $ImagesCache.removeProfile(context, width: 160);
 ```
+
+Cache dimensions are logical pixels. Use the same width and height when
+precaching, rendering, and removing an image or GIF. When both dimensions are
+omitted, the cache methods use the generated widget's default display size.
+Removal preserves an image that is still being displayed while releasing its
+reusable cache entry.
 
 Supported Lottie text and colors become fields on the generated `overrides`
 object.
@@ -125,6 +136,10 @@ Generated Lotties clip painting to their source canvas by default. Pass
 | `assets/icons/close.svg`     | `$Icons.close(...)`    | Dependency-free `CustomPainter` |
 | `assets/lotties/pulse.json`  | `$Lotties.pulse(...)`  | Lifecycle-aware `CustomPainter` |
 | `assets/images/profile.webp` | `$Images.profile(...)` | Optimized `Image.asset`         |
+
+Namespaces containing images or GIFs also generate a companion cache class,
+such as `$ImagesCache`. Mixed folders generate cache methods only for their
+image and GIF assets.
 
 Assets are grouped by their parent folder. Mixed asset types in
 `assets/status/` share one `lib/gen/status.g.dart` library and one

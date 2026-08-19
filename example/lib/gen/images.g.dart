@@ -238,13 +238,78 @@ abstract final class $Images {
     color: color,
     colorBlendMode: colorBlendMode,
   );
+}
 
-  /// Precaches all images in this namespace.
+/// Manages Flutter image-cache entries for `images/`.
+///
+/// Use the same width and height when caching, rendering, and removing
+/// an image so every operation addresses the same decoded entry.
+abstract final class $ImagesCache {
+  $ImagesCache._();
+
+  static const _cataquiAsset = AssetImage('assets/images/cataqui.png');
+
+  /// Decodes `cataqui` before its first render.
   ///
-  /// Call during app bootstrap (off the critical path) to warm the image
-  /// cache so the first render never stalls on a cold decode.
-  static Future<void> precache(BuildContext context) async {
-    await precacheImage(const AssetImage('assets/images/cataqui.png'), context);
+  /// [width] and [height] are logical pixels. Pass the same values to
+  /// `$Images.cataqui` so it reuses this cache entry.
+  /// Omitting both values uses the widget's default display size.
+  static Future<void> precacheCataqui(
+    BuildContext context, {
+    double? width,
+    double? height,
+  }) => precacheImage(
+    _provider(
+      context,
+      asset: _cataquiAsset,
+      aspectRatio: 1,
+      width: width,
+      height: height,
+    ),
+    context,
+  );
+
+  /// Removes the decoded `cataqui` entry from Flutter's image cache.
+  ///
+  /// Returns whether the matching entry existed. [width] and [height]
+  /// must match the values used to precache or render the image.
+  /// An image that is still displayed remains live until its last listener
+  /// is removed, preventing a duplicate decode during transitions.
+  static Future<bool> removeCataqui(
+    BuildContext context, {
+    double? width,
+    double? height,
+  }) async {
+    final configuration = createLocalImageConfiguration(context);
+    final provider = _provider(
+      context,
+      asset: _cataquiAsset,
+      aspectRatio: 1,
+      width: width,
+      height: height,
+    );
+    final key = await provider.obtainKey(configuration);
+    return imageCache.evict(key, includeLive: false);
+  }
+
+  static ImageProvider<Object> _provider(
+    BuildContext context, {
+    required AssetImage asset,
+    required double aspectRatio,
+    double? width,
+    double? height,
+  }) {
+    assert(width == null || width > 0, 'width must be greater than zero.');
+    assert(height == null || height > 0, 'height must be greater than zero.');
+    final resolvedWidth =
+        width ?? (height != null ? height * aspectRatio : 280);
+    final resolvedHeight = height ?? resolvedWidth / aspectRatio;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    return ResizeImage.resizeIfNeeded(
+      (resolvedWidth * devicePixelRatio).ceil(),
+      (resolvedHeight * devicePixelRatio).ceil(),
+      asset,
+    );
   }
 }
 

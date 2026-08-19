@@ -5,6 +5,7 @@
 import 'package:dart_style/dart_style.dart';
 
 import 'generated_asset_spec.dart';
+import 'image_generator.dart';
 import 'shared_emit.dart';
 
 /// Assembles a complete `.g.dart` file for one namespace.
@@ -13,7 +14,8 @@ import 'shared_emit.dart';
 /// 1. Generated-code header + imports
 /// 2. Shared mixins/helpers (deduplicated once per file)
 /// 3. `abstract final class $NamespaceName` with one static method per asset
-/// 4. All widget class + painter definitions
+/// 4. A companion cache class when the namespace contains images or GIFs
+/// 5. All widget class + painter definitions
 ///
 /// The [namespaceName] is the PascalCase identifier (e.g. `Icons` — the
 /// assembler prepends `$` for the class name).
@@ -36,6 +38,7 @@ class NamespaceAssembler {
     _writeImports(b);
     _writeSharedCode(b);
     _writeNamespaceClass(b);
+    _writeCacheClass(b);
     for (final asset in assets) {
       b.write(asset.widgetSource);
     }
@@ -43,6 +46,8 @@ class NamespaceAssembler {
   }
 
   String get _className => '\$$namespaceName';
+
+  String get _cacheClassName => '\$${namespaceName}Cache';
 
   void _writeHeader(StringBuffer b) {
     b.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
@@ -87,7 +92,6 @@ class NamespaceAssembler {
 
   void _writeNamespaceClass(StringBuffer b) {
     final className = _className;
-    final hasRaster = assets.any((a) => a.assetType == DotdartAssetType.raster);
 
     b.writeln('/// Namespace for dotdart-generated widgets from `$folderSegment/`.');
     b.writeln('///');
@@ -106,27 +110,115 @@ class NamespaceAssembler {
       _writeAccessorMethod(b, asset);
     }
 
-    if (hasRaster) {
-      b.writeln('  /// Precaches all images in this namespace.');
-      b.writeln('  ///');
-      b.writeln('  /// Call during app bootstrap (off the critical path) to warm the image');
-      b.writeln('  /// cache so the first render never stalls on a cold decode.');
-      b.writeln('  static Future<void> precache(BuildContext context) async {');
-      final rasterAssets = assets.where((asset) => asset.cacheKey != null).toList(growable: false);
-      for (var index = 0; index < rasterAssets.length; index++) {
-        final asset = rasterAssets[index];
-        if (asset.cacheKey != null) {
-          b.writeln("    await precacheImage(const AssetImage('${asset.cacheKey}'), context);");
-          if (index < rasterAssets.length - 1) {
-            b.writeln('    if (!context.mounted) return;');
-          }
-        }
+    b.writeln('}');
+    b.writeln();
+  }
+
+  void _writeCacheClass(StringBuffer b) {
+    final rasterAssets = assets.where((asset) => asset.assetType == DotdartAssetType.raster).toList(growable: false);
+    if (rasterAssets.isEmpty) return;
+
+    final cacheClassName = _cacheClassName;
+    b.writeln('/// Manages Flutter image-cache entries for `$folderSegment/`.');
+    b.writeln('///');
+    b.writeln('/// Use the same width and height when caching, rendering, and removing');
+    b.writeln('/// an image so every operation addresses the same decoded entry.');
+    b.writeln('abstract final class $cacheClassName {');
+    b.writeln('  $cacheClassName._();');
+    b.writeln();
+
+    for (final asset in rasterAssets) {
+      final cacheKey = asset.cacheKey;
+      if (cacheKey == null || asset.cacheAspectRatio == null) {
+        throw StateError('Image asset `${asset.sourcePath}` is missing cache metadata.');
       }
-      b.writeln('  }');
-      b.writeln();
+      b.writeln("  static const _${asset.accessorName}Asset = AssetImage('$cacheKey');");
+    }
+    b.writeln();
+
+    for (final asset in rasterAssets) {
+      _writeCacheMethods(b, asset);
     }
 
+    _writeCacheProvider(b);
+
     b.writeln('}');
+    b.writeln();
+  }
+
+  void _writeCacheMethods(StringBuffer b, GeneratedAssetSpec asset) {
+    final methodSuffix = asset.accessorName[0].toUpperCase() + asset.accessorName.substring(1);
+    final assetProviderName = '_${asset.accessorName}Asset';
+    final aspectRatio = _formatNumber(asset.cacheAspectRatio!);
+
+    b.writeln('  /// Decodes `${asset.accessorName}` before its first render.');
+    b.writeln('  ///');
+    b.writeln('  /// [width] and [height] are logical pixels. Pass the same values to');
+    b.writeln('  /// `$_className.${asset.accessorName}` so it reuses this cache entry.');
+    b.writeln("  /// Omitting both values uses the widget's default display size.");
+    b.writeln('  static Future<void> precache$methodSuffix(');
+    b.writeln('    BuildContext context, {');
+    b.writeln('    double? width,');
+    b.writeln('    double? height,');
+    b.writeln('  }) =>');
+    b.writeln('      precacheImage(');
+    b.writeln('        _provider(');
+    b.writeln('          context,');
+    b.writeln('          asset: $assetProviderName,');
+    b.writeln('          aspectRatio: $aspectRatio,');
+    b.writeln('          width: width,');
+    b.writeln('          height: height,');
+    b.writeln('        ),');
+    b.writeln('        context,');
+    b.writeln('      );');
+    b.writeln();
+    b.writeln("  /// Removes the decoded `${asset.accessorName}` entry from Flutter's image cache.");
+    b.writeln('  ///');
+    b.writeln('  /// Returns whether the matching entry existed. [width] and [height]');
+    b.writeln('  /// must match the values used to precache or render the image.');
+    b.writeln('  /// An image that is still displayed remains live until its last listener');
+    b.writeln('  /// is removed, preventing a duplicate decode during transitions.');
+    b.writeln('  static Future<bool> remove$methodSuffix(');
+    b.writeln('    BuildContext context, {');
+    b.writeln('    double? width,');
+    b.writeln('    double? height,');
+    b.writeln('  }) async {');
+    b.writeln('    final configuration = createLocalImageConfiguration(context);');
+    b.writeln('    final provider = _provider(');
+    b.writeln('      context,');
+    b.writeln('      asset: $assetProviderName,');
+    b.writeln('      aspectRatio: $aspectRatio,');
+    b.writeln('      width: width,');
+    b.writeln('      height: height,');
+    b.writeln('    );');
+    b.writeln('    final key = await provider.obtainKey(configuration);');
+    b.writeln('    return imageCache.evict(key, includeLive: false);');
+    b.writeln('  }');
+    b.writeln();
+  }
+
+  void _writeCacheProvider(StringBuffer b) {
+    b.writeln('  static ImageProvider<Object> _provider(');
+    b.writeln('    BuildContext context, {');
+    b.writeln('    required AssetImage asset,');
+    b.writeln('    required double aspectRatio,');
+    b.writeln('    double? width,');
+    b.writeln('    double? height,');
+    b.writeln('  }) {');
+    b.writeln("    assert(width == null || width > 0, 'width must be greater than zero.');");
+    b.writeln("    assert(height == null || height > 0, 'height must be greater than zero.');");
+    b.writeln(
+      '    final resolvedWidth = width ?? '
+      '(height != null ? height * aspectRatio : ${ImageGenerator.defaultWidth});',
+    );
+    b.writeln('    final resolvedHeight = height ?? resolvedWidth / aspectRatio;');
+    b.writeln('    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);');
+    b.writeln('    return ResizeImage.resizeIfNeeded(');
+    b.writeln('      (resolvedWidth * devicePixelRatio).ceil(),');
+    b.writeln('      (resolvedHeight * devicePixelRatio).ceil(),');
+    b.writeln('      asset,');
+    b.writeln('    );');
+    b.writeln('  }');
     b.writeln();
   }
 
@@ -156,5 +248,10 @@ class NamespaceAssembler {
 
     b.writeln('      );');
     b.writeln();
+  }
+
+  String _formatNumber(double value) {
+    if (value == value.roundToDouble()) return value.toInt().toString();
+    return value.toString();
   }
 }

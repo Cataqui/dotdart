@@ -6,6 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('dotdart generated consumer', () {
+    setUp(() {
+      imageCache
+        ..clear()
+        ..clearLiveImages();
+    });
+
     testWidgets('when generated vector and image accessors render together, it should paint without errors', (
       tester,
     ) async {
@@ -73,6 +79,87 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('when precaching without dimensions, it should remove the widget-default entry', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(builder: (value) => SizedBox(key: ValueKey(context = value))),
+        ),
+      );
+
+      await tester.runAsync(() => $ImagesCache.precacheLandscape(context));
+      await tester.pump();
+
+      expect(await $ImagesCache.removeLandscape(context), isTrue);
+    });
+
+    testWidgets('when removing a displayed image, it should preserve its live entry', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (value) {
+              context = value;
+              return $Images.landscape();
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final image = tester.widget<Image>(find.byType(Image));
+      final configuration = createLocalImageConfiguration(context);
+      final key = await image.image.obtainKey(configuration);
+      final removed = await $ImagesCache.removeLandscape(context);
+      final status = imageCache.statusForKey(key);
+
+      expect((removed, status.live, status.keepAlive), equals((true, true, false)));
+    });
+
+    testWidgets('when precaching an image by width, it should remove the derived-size entry', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(builder: (value) => SizedBox(key: ValueKey(context = value))),
+        ),
+      );
+
+      await tester.runAsync(() => $ImagesCache.precacheLandscape(context, width: 80));
+      await tester.pump();
+
+      expect(await $ImagesCache.removeLandscape(context, width: 80), isTrue);
+    });
+
+    testWidgets('when precaching an image by height, it should remove the derived-size entry', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(builder: (value) => SizedBox(key: ValueKey(context = value))),
+        ),
+      );
+
+      await tester.runAsync(() => $ImagesCache.precachePortrait(context, height: 80));
+      await tester.pump();
+
+      expect(await $ImagesCache.removePortrait(context, height: 80), isTrue);
+    });
+
+    testWidgets('when removing a different image size, it should preserve the matching cached entry', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(builder: (value) => SizedBox(key: ValueKey(context = value))),
+        ),
+      );
+
+      await tester.runAsync(() => $ImagesCache.precacheLandscape(context, width: 80));
+      await tester.pump();
+      final removedDifferentSize = await $ImagesCache.removeLandscape(context, width: 40);
+      final removedMatchingSize = await $ImagesCache.removeLandscape(context, width: 80);
+
+      expect((removedDifferentSize, removedMatchingSize), equals((false, true)));
     });
   });
 }

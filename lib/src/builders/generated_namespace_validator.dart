@@ -8,7 +8,7 @@ class GeneratedNamespaceValidator {
   /// Throws when [assets] would emit conflicting Dart declarations.
   static void validate({required String folderSegment, required List<GeneratedAssetSpec> assets}) {
     final classNames = <String, String>{};
-    final publicNames = <String, String>{'precache': '<namespace helper>'};
+    final publicNames = <String, String>{};
     for (final asset in assets) {
       _claim(
         names: classNames,
