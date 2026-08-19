@@ -229,7 +229,8 @@ class _DotdartBuilder implements Builder {
 
   DiscoveredAsset? _parseRasterAsset(AssetId assetId, List<int> bytes) {
     if (!_isRasterImage(bytes)) return null;
-    final generator = ImageGenerator(RasterParser.parse(bytes), assetId.path);
+    final model = RasterParser.parse(bytes);
+    final generator = ImageGenerator(model, assetId.path);
     return _discoveredAsset(
       assetId: assetId,
       assetType: DotdartAssetType.raster,
@@ -237,6 +238,7 @@ class _DotdartBuilder implements Builder {
       params: generator.params,
       widgetSource: generator.generateWidgetClass(),
       cacheKey: assetId.path,
+      cacheAspectRatio: model.aspectRatio,
     );
   }
 
@@ -247,6 +249,7 @@ class _DotdartBuilder implements Builder {
     required List<AccessorParam> params,
     required String widgetSource,
     String? cacheKey,
+    double? cacheAspectRatio,
   }) {
     return DiscoveredAsset(
       assetId: assetId,
@@ -258,6 +261,7 @@ class _DotdartBuilder implements Builder {
         widgetSource: widgetSource,
         assetType: assetType,
         cacheKey: cacheKey,
+        cacheAspectRatio: cacheAspectRatio,
       ),
     );
   }

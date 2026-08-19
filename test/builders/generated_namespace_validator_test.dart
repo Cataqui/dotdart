@@ -31,7 +31,7 @@ void main() {
       );
     });
 
-    test('when an asset produces the reserved precache helper name, it should reject the accessor', () {
+    test('when an image is named precache, it should allow the accessor', () {
       const assets = [
         GeneratedAssetSpec(
           sourcePath: 'assets/images/precache.webp',
@@ -41,13 +41,11 @@ void main() {
           widgetSource: '',
           assetType: DotdartAssetType.raster,
           cacheKey: 'assets/images/precache.webp',
+          cacheAspectRatio: 1,
         ),
       ];
 
-      expect(
-        () => GeneratedNamespaceValidator.validate(folderSegment: 'images', assets: assets),
-        throwsA(isA<DotdartNamespaceCollisionException>()),
-      );
+      expect(() => GeneratedNamespaceValidator.validate(folderSegment: 'images', assets: assets), returnsNormally);
     });
 
     test('when different asset types in one folder produce the same accessor, it should reject both source paths', () {

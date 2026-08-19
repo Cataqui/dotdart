@@ -72,6 +72,25 @@ Supported formats are PNG, JPEG, WebP, and GIF. Generated metadata includes
 intrinsic dimensions, aspect ratio, animation status, dominant color, and a
 thumbhash placeholder.
 
+Each namespace containing an image or GIF also has a generated cache class.
+Warm one decoded image before it is shown, then remove that same entry when it
+is no longer needed:
+
+```dart
+await $ImagesCache.precacheProfile(context, width: 160);
+
+final image = $Images.profile(width: 160);
+
+final removed = await $ImagesCache.removeProfile(context, width: 160);
+```
+
+Widths and heights are logical pixels. Use the same values for precaching,
+rendering, and removal so Flutter addresses the same decoded cache entry. If
+only one dimension is supplied, dotdart derives the other from the image's
+intrinsic aspect ratio. If neither is supplied, the generated widget's default
+display size is used. Removal releases the reusable cache entry without
+discarding an image that is still being displayed.
+
 AVIF and HEIC are intentionally unsupported because their availability and
 decode behavior are not consistent across the low-end devices dotdart targets.
 

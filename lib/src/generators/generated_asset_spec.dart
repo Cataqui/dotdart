@@ -12,6 +12,7 @@ class GeneratedAssetSpec {
     required this.widgetSource,
     required this.assetType,
     this.cacheKey,
+    this.cacheAspectRatio,
   });
 
   /// Source path relative to the consumer package.
@@ -34,4 +35,7 @@ class GeneratedAssetSpec {
 
   /// Flutter asset path used by generated image and GIF precaching.
   final String? cacheKey;
+
+  /// Intrinsic aspect ratio used to size generated image cache entries.
+  final double? cacheAspectRatio;
 }

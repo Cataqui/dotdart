@@ -54,6 +54,18 @@ void main() {
     widgetSource: 'class _Landscape extends StatelessWidget {}',
     assetType: DotdartAssetType.raster,
     cacheKey: 'assets/images/landscape.png',
+    cacheAspectRatio: 2,
+  );
+
+  const portraitRasterAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/images/avatar.png',
+    accessorName: 'avatar',
+    widgetClassName: '_Avatar',
+    params: [AccessorParam(name: 'key', type: 'Key?')],
+    widgetSource: 'class _Avatar extends StatelessWidget {}',
+    assetType: DotdartAssetType.raster,
+    cacheKey: 'assets/images/avatar.png',
+    cacheAspectRatio: 0.5,
   );
 
   group('NamespaceAssembler', () {
@@ -243,7 +255,7 @@ void main() {
           contains('_DotdartSvgSizing'),
           contains('_DotdartLottieAnimationState'),
           contains('_DotdartThumbhashDecoder'),
-          contains('static Future<void> precache(BuildContext context)'),
+          contains(r'abstract final class $IconsCache'),
         ),
       );
     });
@@ -262,11 +274,67 @@ void main() {
       expect(code, contains('cross.svg'));
     });
 
-    test('when assembling image assets, it should expose precache without public cache keys', () {
+    test('when assembling image assets, it should expose a per-asset cache class', () {
       final assembler = NamespaceAssembler(namespaceName: 'Images', folderSegment: 'images', assets: [rasterAsset]);
       final code = assembler.assemble();
 
-      expect(code, allOf(contains('static Future<void> precache(BuildContext context)'), isNot(contains('CacheKey'))));
+      expect(
+        code,
+        allOf(
+          contains(r'abstract final class $ImagesCache'),
+          contains('static Future<void> precacheLandscape('),
+          contains('static Future<bool> removeLandscape('),
+          isNot(contains('static Future<void> precache(BuildContext context)')),
+        ),
+      );
+    });
+
+    test('when assembling image cache methods, it should emit matching resized provider logic', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Images', folderSegment: 'images', assets: [rasterAsset]);
+      final code = assembler.assemble();
+
+      expect(
+        code,
+        allOf([
+          contains('width ?? (height != null ? height * aspectRatio : 280);'),
+          contains('final resolvedHeight = height ?? resolvedWidth / aspectRatio;'),
+          contains('(resolvedWidth * devicePixelRatio).ceil()'),
+          contains('(resolvedHeight * devicePixelRatio).ceil()'),
+          contains("static const _landscapeAsset = AssetImage('assets/images/landscape.png')"),
+          contains('aspectRatio: 2,'),
+          contains('final key = await provider.obtainKey(configuration);'),
+          contains('imageCache.evict(key, includeLive: false)'),
+        ]),
+      );
+    });
+
+    test('when assembling a namespace without images, it should omit the cache class', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
+      final code = assembler.assemble();
+
+      expect(code, isNot(contains(r'class $IconsCache')));
+    });
+
+    test('when assembling multiple image assets, it should preserve their cache method order', () {
+      final assembler = NamespaceAssembler(
+        namespaceName: 'Images',
+        folderSegment: 'images',
+        assets: [portraitRasterAsset, rasterAsset],
+      );
+      final code = assembler.assemble();
+
+      expect(code.indexOf('precacheAvatar'), lessThan(code.indexOf('precacheLandscape')));
+    });
+
+    test('when assembling a mixed namespace, it should cache only image assets', () {
+      final assembler = NamespaceAssembler(
+        namespaceName: 'Icons',
+        folderSegment: 'icons',
+        assets: [crossAsset, rasterAsset],
+      );
+      final code = assembler.assemble();
+
+      expect(code, allOf(contains('precacheLandscape'), isNot(contains('precacheCross'))));
     });
   });
 }

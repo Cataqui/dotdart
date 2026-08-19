@@ -15,7 +15,8 @@ class ImageGenerator {
   final RasterImage model;
   final String sourcePath;
 
-  static const _defaultWidth = 280;
+  /// Default logical width used when no display dimensions are provided.
+  static const defaultWidth = 280;
 
   /// Returns the constructor parameters of the generated image widget.
   List<AccessorParam> get params => [
@@ -83,7 +84,7 @@ class ImageGenerator {
     b.writeln('  Widget build(BuildContext context) {');
     b.writeln('    final dpr = MediaQuery.devicePixelRatioOf(context);');
     b.writeln('    const aspect = _aspectRatio;');
-    b.writeln('    final w = width ?? (height != null ? height! * aspect : $_defaultWidth.0);');
+    b.writeln('    final w = width ?? (height != null ? height! * aspect : $defaultWidth.0);');
     b.writeln('    final h = height ?? w / aspect;');
     b.writeln();
     b.writeln('    final image = Image.asset(');

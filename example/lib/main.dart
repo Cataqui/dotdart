@@ -18,8 +18,28 @@ class DotdartExampleApp extends StatelessWidget {
   }
 }
 
-class DotdartExamplePage extends StatelessWidget {
+class DotdartExamplePage extends StatefulWidget {
   const DotdartExamplePage({super.key});
+
+  @override
+  State<DotdartExamplePage> createState() => _DotdartExamplePageState();
+}
+
+class _DotdartExamplePageState extends State<DotdartExamplePage> {
+  static const _cachedImageWidth = 96.0;
+
+  var _showCachedImage = false;
+
+  Future<void> _precacheAndShowImage() async {
+    await $ImagesCache.precacheCataqui(context, width: _cachedImageWidth);
+    if (!mounted) return;
+    setState(() => _showCachedImage = true);
+  }
+
+  Future<void> _hideAndRemoveImage() async {
+    setState(() => _showCachedImage = false);
+    await $ImagesCache.removeCataqui(context, width: _cachedImageWidth);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +83,20 @@ class DotdartExamplePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _ExampleCard(label: 'Image with generated metadata', child: $Images.cataqui(width: 96)),
+          _ExampleCard(
+            label: 'Per-asset image cache',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_showCachedImage) $Images.cataqui(width: _cachedImageWidth),
+                if (_showCachedImage) const SizedBox(width: 16),
+                FilledButton(
+                  onPressed: _showCachedImage ? _hideAndRemoveImage : _precacheAndShowImage,
+                  child: Text(_showCachedImage ? 'Remove from cache' : 'Precache and show'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
