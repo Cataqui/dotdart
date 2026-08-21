@@ -66,10 +66,19 @@ class NamespaceAssembler {
     if (types.contains(DotdartAssetType.lottie)) {
       b.writeln("import 'dart:async';");
     }
-    b.writeln("import 'dart:math' as math;");
+    if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {
+      b.writeln("import 'dart:math' as math;");
+    }
+    if (assets.any((asset) => asset.requiresPathMetrics)) {
+      b.writeln("import 'dart:ui' show PathMetric;");
+    }
     b.writeln("import 'package:flutter/material.dart';");
     if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {
       b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
+    }
+    if (types.contains(DotdartAssetType.lottie)) {
+      b.writeln("import 'dotdart.g.dart' show LottiePlayback;");
+      b.writeln("export 'dotdart.g.dart' show LottiePlayback;");
     }
     b.writeln();
   }

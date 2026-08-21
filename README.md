@@ -20,8 +20,8 @@ widget sustained 60.2 FPS while the
 
 | Renderer       | Frames in 10 seconds | Average UI time | Average raster time | Missed UI frames |
 | -------------- | -------------------: | --------------: | ------------------: | ---------------: |
-| dotdart output |                  602 |         0.434 ms |             4.62 ms |            0/602 |
-| `lottie` 3.5.1 |                  272 |         32.04 ms |             3.33 ms |          271/272 |
+| dotdart output |                  602 |        0.434 ms |             4.62 ms |            0/602 |
+| `lottie` 3.5.1 |                  272 |        32.04 ms |             3.33 ms |          271/272 |
 
 That is about 74 times less UI-thread work and 7 times less combined UI and
 raster time for this animation. The comparison used the same canvas and asset
@@ -46,8 +46,8 @@ dotdart at runtime.
 - **No SVG or Lottie runtime renderer:** supported vectors and animations become
   ordinary `CustomPainter` code.
 - **Low-resource image defaults:** generated image and GIF widgets include
-  decode sizing, intrinsic metadata, a thumbhash placeholder, and per-asset
-  cache controls.
+  decode sizing, intrinsic metadata, a build-time-decoded thumbhash placeholder,
+  and per-asset cache controls.
 - **Build-time validation:** malformed configuration, unsupported content,
   duplicate inputs, naming collisions, and unsafe output paths fail early.
 - **Self-contained output:** generated libraries depend on Flutter, not dotdart.
@@ -98,7 +98,12 @@ import 'package:my_app/gen/lotties.g.dart';
 import 'package:flutter/material.dart';
 
 final closeIcon = $Icons.close(width: 24);
-final pulse = $Lotties.pulse(width: 96);
+final pulse = $Lotties.pulse(
+  width: 96,
+  delay: const Duration(milliseconds: 300),
+  duration: const Duration(seconds: 2),
+  playback: LottiePlayback.loop,
+);
 final jobCards = $Lotties.jobCards(
   width: 320,
   clip: false,
@@ -129,6 +134,20 @@ fallbacks.
 Generated Lotties clip painting to their source canvas by default. Pass
 `clip: false` when artwork should remain visible outside that boundary.
 
+Use `delay` to wait once before automatic playback starts. Use `duration` to
+override the total playback time and make the animation faster or slower while
+preserving the relative timing of its keyframes. When `duration` is omitted,
+the animation uses the duration stored in the Lottie file.
+
+Generated Lotties play once by default and keep their final frame visible. Pass
+`playback: LottiePlayback.loop` to repeat an animation continuously. The
+generated namespace library re-exports `LottiePlayback`, so no additional
+import is needed.
+
+Supported trim paths preserve animated start, end, and offset values in the
+default drawing direction, including parallel and sequential handling when one
+shape group contains multiple paths.
+
 ## Generated output
 
 | Input                        | Generated API          | Runtime implementation          |
@@ -147,6 +166,10 @@ Assets are grouped by their parent folder. Mixed asset types in
 
 Generated widget classes are private. Consume assets through their public
 namespace methods and do not edit generated files by hand.
+
+When the package contains Lottie inputs, dotdart also writes `dotdart.g.dart`
+beside the namespace libraries for shared generated types such as
+`LottiePlayback`.
 
 ## Documentation
 

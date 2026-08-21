@@ -66,11 +66,55 @@ void main() {
       expect(source, contains('static const Color _dominantColor = Color(0xFF8A6D4B)'));
     });
 
-    test('when generating source, it should embed the thumbhash', () {
+    test('when generating source, it should embed decoded thumbhash pixels', () {
       final generator = ImageGenerator(fixture, 'assets/three_d/cat.webp');
       final source = generator.generateWidgetClass();
 
-      expect(source, contains("static const String _thumbhash = 'testhash123'"));
+      expect(
+        source,
+        allOf(
+          contains('static const int _thumbhashWidth = 1;'),
+          contains('static const int _thumbhashHeight = 1;'),
+          contains('static const List<Color> _thumbhashPixels = <Color>['),
+          contains('Color(0xFF000000)'),
+          isNot(contains("static const String _thumbhash = 'testhash123'")),
+        ),
+      );
+    });
+
+    test('when generating source, it should reuse one image frame builder', () {
+      final generator = ImageGenerator(fixture, 'assets/three_d/cat.webp');
+      final source = generator.generateWidgetClass();
+
+      expect(
+        source,
+        allOf(
+          contains('static final _frameBuilder = _dotdartImageFrameBuilder('),
+          contains('frameBuilder: _frameBuilder,'),
+        ),
+      );
+    });
+
+    test('when a thumbhash is absent, it should paint only the dominant color', () {
+      const imageWithoutThumbhash = RasterImage(
+        intrinsicWidth: 1,
+        intrinsicHeight: 1,
+        format: RasterImageFormat.png,
+        isAnimated: false,
+        aspectRatio: 1,
+        dominantColor: 0xFF8A6D4B,
+        thumbhash: '',
+      );
+      final source = ImageGenerator(imageWithoutThumbhash, 'assets/empty.png').generateWidgetClass();
+
+      expect(
+        source,
+        allOf(
+          contains('static const int _thumbhashWidth = 0;'),
+          contains('static const int _thumbhashHeight = 0;'),
+          contains('static const List<Color> _thumbhashPixels = <Color>[\n  ];'),
+        ),
+      );
     });
 
     test('when generating source, it should embed the asset path', () {

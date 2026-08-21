@@ -5,6 +5,7 @@ import '../models/lottie_composition.dart';
 import '../models/lottie_keyframe.dart';
 import '../models/lottie_layer.dart';
 import '../models/lottie_shape.dart';
+import '../models/lottie_shape_enums.dart';
 import '../models/lottie_text.dart';
 
 /// Exception thrown when the parser encounters an unsupported Lottie feature.
@@ -431,18 +432,40 @@ class LottieParser {
     final it = _optionalList(raw['it'], path: '$path.it');
 
     final items = <LottieShape>[];
+    var hasTrimPath = false;
     for (var index = 0; index < it.length; index++) {
       final itemPath = '$path.it[$index]';
-      final item = _parseShapeItem(_requiredMap(it[index], path: itemPath), warnings);
+      final item = _parseShapeItem(_requiredMap(it[index], path: itemPath), warnings, path: itemPath);
       if (item != null) {
+        if (item is LottieTrimPath && hasTrimPath) {
+          throw DotdartUnsupportedFeatureException('$path contains more than one trim-path modifier.');
+        }
+        if (item is LottieTrimPath) hasTrimPath = true;
         items.add(item);
+      }
+    }
+    if (hasTrimPath) {
+      for (final item in items) {
+        final direction = switch (item) {
+          LottiePath() => item.direction,
+          LottieRect() => item.direction,
+          LottieEllipse() => item.direction,
+          _ => 1,
+        };
+        if (direction == 3) {
+          throw DotdartUnsupportedFeatureException('$path combines a trim path with reversed shape direction.');
+        }
       }
     }
 
     return LottieGroup(name: nm, items: items);
   }
 
-  static LottieShape? _parseShapeItem(Map<String, dynamic> raw, List<String> warnings) {
+  static LottieShape? _parseShapeItem(
+    Map<String, dynamic> raw,
+    List<String> warnings, {
+    required String path,
+  }) {
     final ty = raw['ty'] as String?;
     if (ty == null) return null;
 
@@ -457,6 +480,8 @@ class LottieParser {
         return _parseFill(raw);
       case 'st':
         return _parseStroke(raw);
+      case 'tm':
+        return _parseTrimPath(raw, path: path);
       case 'tr':
         return _parseGroupTransform(raw);
       default:
@@ -485,7 +510,13 @@ class LottieParser {
     }).toList();
     final closed = k['c'] as bool? ?? true;
 
-    return LottiePath(vertices: v, inTangents: i, outTangents: o, closed: closed);
+    return LottiePath(
+      vertices: v,
+      inTangents: i,
+      outTangents: o,
+      closed: closed,
+      direction: (raw['d'] as num?)?.toInt() ?? 1,
+    );
   }
 
   static LottieRect _parseRect(Map<String, dynamic> raw) {
@@ -551,6 +582,21 @@ class LottieParser {
       width: _staticValue(w, 0),
       lineCap: lc,
       lineJoin: lj,
+    );
+  }
+
+  static LottieTrimPath _parseTrimPath(Map<String, dynamic> raw, {required String path}) {
+    final modeValue = (raw['m'] as num?)?.toInt() ?? 1;
+    final mode = LottieTrimPathMode.fromValue(modeValue);
+    if (mode == null) {
+      throw DotdartUnsupportedFeatureException('$path uses unsupported trim-path mode $modeValue.');
+    }
+
+    return LottieTrimPath(
+      start: _parseAnimatedScalar(_requiredMap(raw['s'], path: '$path.s')),
+      end: _parseAnimatedScalar(_requiredMap(raw['e'], path: '$path.e')),
+      offset: _parseAnimatedScalar(_requiredMap(raw['o'], path: '$path.o')),
+      mode: mode,
     );
   }
 

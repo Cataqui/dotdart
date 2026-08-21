@@ -7,173 +7,39 @@
 // Generated canvas and paint sequences intentionally use repeated receiver calls.
 // ignore_for_file: cascade_invocations, unused_element, unused_element_parameter
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-
-/// Decodes a thumbhash string into a small RGBA image.
-class _DotdartThumbhashDecoder {
-  _DotdartThumbhashDecoder._();
-
-  static ({int width, int height, List<int> pixels}) decode(String hash) {
-    final bytes = _decodeBase64(hash);
-    if (bytes.length < 5) {
-      return (width: 1, height: 1, pixels: [0, 0, 0, 255]);
-    }
-
-    final dcRed = (bytes[0] - 128) / 127;
-    final dcGreen = (bytes[1] - 128) / 127;
-    final dcBlue = (bytes[2] - 128) / 127;
-    final dcAlpha = bytes[3] / 255;
-    final header = bytes[4];
-    final coefficientWidth = ((header >> 3) & 7) + 1;
-    final coefficientHeight = (header & 7) + 1;
-    final acCount = coefficientWidth * coefficientHeight - 1;
-    final expectedLength = 5 + acCount * 4;
-    if (bytes.length < expectedLength) {
-      return (width: 1, height: 1, pixels: [0, 0, 0, 255]);
-    }
-    final acBytes = bytes.sublist(5, 5 + acCount * 4);
-    final acRed = List<double>.filled(coefficientWidth * coefficientHeight, 0);
-    final acGreen = List<double>.filled(
-      coefficientWidth * coefficientHeight,
-      0,
-    );
-    final acBlue = List<double>.filled(coefficientWidth * coefficientHeight, 0);
-    final acAlpha = List<double>.filled(
-      coefficientWidth * coefficientHeight,
-      0,
-    );
-
-    var acIndex = 0;
-    for (
-      var coefficientY = 0;
-      coefficientY < coefficientHeight;
-      coefficientY++
-    ) {
-      for (
-        var coefficientX = 0;
-        coefficientX < coefficientWidth;
-        coefficientX++
-      ) {
-        if (coefficientX == 0 && coefficientY == 0) continue;
-        final index = coefficientY * coefficientWidth + coefficientX;
-        acRed[index] = (acBytes[acIndex++] - 128) / 63;
-        acGreen[index] = (acBytes[acIndex++] - 128) / 63;
-        acBlue[index] = (acBytes[acIndex++] - 128) / 63;
-        acAlpha[index] = (acBytes[acIndex++] - 128) / 63;
-      }
-    }
-
-    final pixels = <int>[];
-    for (var y = 0; y < coefficientHeight; y++) {
-      for (var x = 0; x < coefficientWidth; x++) {
-        var red = dcRed;
-        var green = dcGreen;
-        var blue = dcBlue;
-        var alpha = dcAlpha;
-        for (
-          var coefficientY = 0;
-          coefficientY < coefficientHeight;
-          coefficientY++
-        ) {
-          for (
-            var coefficientX = 0;
-            coefficientX < coefficientWidth;
-            coefficientX++
-          ) {
-            if (coefficientX == 0 && coefficientY == 0) continue;
-            final index = coefficientY * coefficientWidth + coefficientX;
-            final cosineX = math.cos(
-              math.pi / coefficientWidth * (x + 0.5) * coefficientX,
-            );
-            final cosineY = math.cos(
-              math.pi / coefficientHeight * (y + 0.5) * coefficientY,
-            );
-            final weight = cosineX * cosineY;
-            red += acRed[index] * weight;
-            green += acGreen[index] * weight;
-            blue += acBlue[index] * weight;
-            alpha += acAlpha[index] * weight;
-          }
-        }
-
-        if (alpha <= 0) {
-          pixels.addAll([0, 0, 0, 0]);
-          continue;
-        }
-        final inverseAlpha = 1 / alpha;
-        pixels
-          ..add(
-            (_linearToSrgb((red * inverseAlpha).clamp(0, 1)) * 255)
-                .round()
-                .clamp(0, 255),
-          )
-          ..add(
-            (_linearToSrgb((green * inverseAlpha).clamp(0, 1)) * 255)
-                .round()
-                .clamp(0, 255),
-          )
-          ..add(
-            (_linearToSrgb((blue * inverseAlpha).clamp(0, 1)) * 255)
-                .round()
-                .clamp(0, 255),
-          )
-          ..add((alpha.clamp(0, 1) * 255).round().clamp(0, 255));
-      }
-    }
-
-    return (width: coefficientWidth, height: coefficientHeight, pixels: pixels);
-  }
-
-  static double _linearToSrgb(double linear) {
-    if (linear <= 0.0031308) return linear * 12.92;
-    return 1.055 * math.pow(linear, 1 / 2.4) - 0.055;
-  }
-
-  static List<int> _decodeBase64(String value) {
-    const table =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    final bytes = <int>[];
-    var bits = 0;
-    var bitCount = 0;
-    for (var index = 0; index < value.length; index++) {
-      final tableIndex = table.indexOf(value[index]);
-      if (tableIndex < 0) continue;
-      bits = (bits << 6) | tableIndex;
-      bitCount += 6;
-      if (bitCount < 8) continue;
-      bitCount -= 8;
-      bytes.add((bits >> bitCount) & 0xFF);
-      bits &= (1 << bitCount) - 1;
-    }
-    return bytes;
-  }
-}
 
 /// Paints a thumbhash placeholder on a [CustomPainter] canvas.
 class _DotdartThumbhashPainter extends CustomPainter {
-  _DotdartThumbhashPainter(this.hash, this.dominantColor);
+  _DotdartThumbhashPainter(
+    this.thumbWidth,
+    this.thumbHeight,
+    this.pixels,
+    this.dominantColor,
+  );
 
-  final String hash;
+  final int thumbWidth;
+  final int thumbHeight;
+  final List<Color> pixels;
   final Color dominantColor;
+  final Paint _paint = Paint();
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = dominantColor);
-    if (hash.isEmpty) return;
+    canvas.drawRect(Offset.zero & size, _paint..color = dominantColor);
+    if (thumbWidth <= 0 ||
+        thumbHeight <= 0 ||
+        pixels.length < thumbWidth * thumbHeight) {
+      return;
+    }
 
-    final decoded = _DotdartThumbhashDecoder.decode(hash);
-    final thumbW = decoded.width;
-    final thumbH = decoded.height;
-    final pixels = decoded.pixels;
-    final pixelW = size.width / thumbW;
-    final pixelH = size.height / thumbH;
+    final pixelW = size.width / thumbWidth;
+    final pixelH = size.height / thumbHeight;
 
-    for (var y = 0; y < thumbH; y++) {
-      for (var x = 0; x < thumbW; x++) {
-        final pi = (y * thumbW + x) * 4;
-        final a = pixels[pi + 3];
-        if (a == 0) continue;
+    for (var y = 0; y < thumbHeight; y++) {
+      for (var x = 0; x < thumbWidth; x++) {
+        final color = pixels[y * thumbWidth + x];
+        if (color.a == 0) continue;
         canvas.drawRect(
           Rect.fromLTWH(
             (x * pixelW).floorToDouble(),
@@ -181,13 +47,7 @@ class _DotdartThumbhashPainter extends CustomPainter {
             pixelW.ceilToDouble(),
             pixelH.ceilToDouble(),
           ),
-          Paint()
-            ..color = Color.fromARGB(
-              a,
-              pixels[pi],
-              pixels[pi + 1],
-              pixels[pi + 2],
-            ),
+          _paint..color = color,
         );
       }
     }
@@ -195,18 +55,27 @@ class _DotdartThumbhashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotdartThumbhashPainter oldDelegate) {
-    return oldDelegate.hash != hash ||
+    return oldDelegate.thumbWidth != thumbWidth ||
+        oldDelegate.thumbHeight != thumbHeight ||
+        oldDelegate.pixels != pixels ||
         oldDelegate.dominantColor != dominantColor;
   }
 }
 
 /// Returns a frame builder for [Image] that shows a thumbhash placeholder
 /// until the image decodes, then swaps to the real image.
-ImageFrameBuilder _dotdartImageFrameBuilder(String hash, Color color) {
+ImageFrameBuilder _dotdartImageFrameBuilder(
+  int thumbWidth,
+  int thumbHeight,
+  List<Color> pixels,
+  Color color,
+) {
   return (context, child, frame, sync) {
     if (sync) return child;
     if (frame != null) return child;
-    return CustomPaint(painter: _DotdartThumbhashPainter(hash, color));
+    return CustomPaint(
+      painter: _DotdartThumbhashPainter(thumbWidth, thumbHeight, pixels, color),
+    );
   };
 }
 
@@ -317,7 +186,7 @@ abstract final class $ImagesCache {
 ///
 /// Intrinsic 1024×1024 · PNG · aspect 1.0000.
 /// Decodes at display size × device pixel ratio for minimal memory.
-/// Renders a thumbhash placeholder in frame 1, then crossfades to the image.
+/// Renders a thumbhash placeholder in frame 1, then swaps to the image.
 class _Cataqui extends StatelessWidget {
   const _Cataqui({
     super.key,
@@ -349,8 +218,80 @@ class _Cataqui extends StatelessWidget {
 
   static const double _aspectRatio = 1;
   static const Color _dominantColor = Color(0x22232323);
-  static const String _thumbhash =
-      'j4-PIz-AgICAe3t7eoCAgICAgICAf39_f4KCgoKBgYGBgYGBgYCAgIF_f39_f39_f4GBgYGAgICAgICAgIGBgYF7e3t6gICAgIODg4SAgICAgICAgIGBgYF-fn5-f39_f39_f39_f39_gYGBgYGBgYF_f39_gICAgICAgIB-fn5-gYGBgYCAgICAgICAgICAgICAgIB_f39_gYGBgYGBgYF_f39_gICAgIGBgYGAgICAf39_f39_f3-AgICAgYGBgYGBgYGAgICAgICAf4CAgICAgICAgICAgICAgIB_f39_goKCgoCAgIB-fn5-f39_f4KCgoKBgYGBf39_f4CAgIA';
+  static const int _thumbhashWidth = 8;
+  static const int _thumbhashHeight = 8;
+  static const List<Color> _thumbhashPixels = <Color>[
+    Color(0x059C9C9C),
+    Color(0x0FE1E1E1),
+    Color(0x19ECECEC),
+    Color(0x16EBEBEB),
+    Color(0x1EF7F7F7),
+    Color(0x16FFFFFF),
+    Color(0x06FFFFFF),
+    Color(0x0BFFFFFF),
+    Color(0x0FB8B8B8),
+    Color(0x09848484),
+    Color(0x27F1F1F1),
+    Color(0x28F7F7F7),
+    Color(0x29FBFBFB),
+    Color(0x17FAFAFA),
+    Color(0x0AF3F3F3),
+    Color(0x06E7E7E7),
+    Color(0x19FFFFFF),
+    Color(0x1CEBEBEB),
+    Color(0x5CF1F1F1),
+    Color(0x68EDEDED),
+    Color(0x6EF0F0F0),
+    Color(0x32EAEAEA),
+    Color(0x19FAFAFA),
+    Color(0x19FFFFFF),
+    Color(0x18EDEDED),
+    Color(0x21E6E6E6),
+    Color(0x67F2F2F2),
+    Color(0x1CB8B8B8),
+    Color(0x63EEEEEE),
+    Color(0x4AEEEEEE),
+    Color(0x10D3D3D3),
+    Color(0x1CF7F7F7),
+    Color(0x1FF7F7F7),
+    Color(0x1DE8E8E8),
+    Color(0x5EF2F2F2),
+    Color(0x67EFEFEF),
+    Color(0x74F0F0F0),
+    Color(0x5BF0F0F0),
+    Color(0x1FE5E5E5),
+    Color(0x29F5F5F5),
+    Color(0x05FFFFFF),
+    Color(0x1BFBFBFB),
+    Color(0x25E2E2E2),
+    Color(0x29D2D2D2),
+    Color(0x28CDCDCD),
+    Color(0x55EFEFEF),
+    Color(0x12DEDEDE),
+    Color(0x0CFFFFFF),
+    Color(0x00000000),
+    Color(0x0AF4F4F4),
+    Color(0x14F9F9F9),
+    Color(0x12F5F5F5),
+    Color(0x1CF3F3F3),
+    Color(0x18E8E8E8),
+    Color(0x12D0D0D0),
+    Color(0x06000000),
+    Color(0x09FFFFFF),
+    Color(0x09FFFFFF),
+    Color(0x19FFFFFF),
+    Color(0x15F4F4F4),
+    Color(0x1EF1F1F1),
+    Color(0x19ECECEC),
+    Color(0x09CACACA),
+    Color(0x09CDCDCD),
+  ];
+  static final _frameBuilder = _dotdartImageFrameBuilder(
+    _thumbhashWidth,
+    _thumbhashHeight,
+    _thumbhashPixels,
+    _dominantColor,
+  );
   static const String _assetPath = 'assets/images/cataqui.png';
 
   @override
@@ -373,7 +314,7 @@ class _Cataqui extends StatelessWidget {
       filterQuality: FilterQuality.low,
       cacheWidth: (w * dpr).ceil(),
       cacheHeight: (h * dpr).ceil(),
-      frameBuilder: _dotdartImageFrameBuilder(_thumbhash, _dominantColor),
+      frameBuilder: _frameBuilder,
     );
 
     return RepaintBoundary(child: image);

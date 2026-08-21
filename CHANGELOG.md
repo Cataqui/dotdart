@@ -1,3 +1,26 @@
+## 0.9.0
+
+- **BREAKING:** Generated Lotties now play once by default and keep their final
+  frame visible. Pass `playback: LottiePlayback.loop` to retain the previous
+  continuous-loop behavior. Lottie namespace libraries re-export the shared
+  enum from the generated `dotdart.g.dart` file.
+- Fixed completed one-time playback and `progress: 1` rendering a blank frame
+  by holding the final visible position before the Lottie out-point.
+- Added `delay` and `duration` to generated Lottie accessors. `delay` waits
+  once before automatic playback starts, while `duration` can make the full
+  animation play faster or slower without changing its internal timing.
+- Added static and animated Lottie trim paths for paths, rectangles, and
+  ellipses, including start, end, offset, wraparound, and parallel or
+  sequential handling of multiple shapes in the default drawing direction.
+- Generated trim-path painters use Flutter's native path metrics and remain
+  self-contained without a Lottie runtime dependency.
+- Reduced generated Lottie frame work by reusing laid-out text painters,
+  compacting adjacent constant keyframes, and caching sequential trim-path
+  lengths outside the paint loop.
+- Moved thumbhash decoding entirely to generation time. Generated image and GIF
+  widgets now contain precomputed placeholder colors and reuse one frame
+  builder, avoiding base64 and inverse-DCT work during their first render.
+
 ## 0.8.0
 
 - **BREAKING:** Replaced namespace-wide image and GIF precaching with generated

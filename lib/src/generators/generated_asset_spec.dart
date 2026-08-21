@@ -13,6 +13,7 @@ class GeneratedAssetSpec {
     required this.assetType,
     this.cacheKey,
     this.cacheAspectRatio,
+    this.requiresPathMetrics = false,
   });
 
   /// Source path relative to the consumer package.
@@ -38,4 +39,7 @@ class GeneratedAssetSpec {
 
   /// Intrinsic aspect ratio used to size generated image cache entries.
   final double? cacheAspectRatio;
+
+  /// Whether this asset requires Flutter's `PathMetric` type.
+  final bool requiresPathMetrics;
 }

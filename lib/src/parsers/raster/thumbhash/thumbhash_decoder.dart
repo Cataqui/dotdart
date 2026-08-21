@@ -1,14 +1,10 @@
-/// Emits the thumbhash decoder used in generated image and GIF namespaces.
-class ThumbhashDecoderSource {
-  ThumbhashDecoderSource._();
+import 'dart:math' as math;
 
-  /// Returns the canonical runtime decoder source.
-  static String source() {
-    return '''
-/// Decodes a thumbhash string into a small RGBA image.
-class _DotdartThumbhashDecoder {
-  _DotdartThumbhashDecoder._();
+/// Decodes a thumbhash into the small RGBA placeholder compiled into generated source.
+class ThumbhashDecoder {
+  ThumbhashDecoder._();
 
+  /// Returns the decoded width, height, and row-major RGBA bytes for [hash].
   static ({int width, int height, List<int> pixels}) decode(String hash) {
     final bytes = _decodeBase64(hash);
     if (bytes.length < 5) {
@@ -27,11 +23,12 @@ class _DotdartThumbhashDecoder {
     if (bytes.length < expectedLength) {
       return (width: 1, height: 1, pixels: [0, 0, 0, 255]);
     }
-    final acBytes = bytes.sublist(5, 5 + acCount * 4);
-    final acRed = List<double>.filled(coefficientWidth * coefficientHeight, 0);
-    final acGreen = List<double>.filled(coefficientWidth * coefficientHeight, 0);
-    final acBlue = List<double>.filled(coefficientWidth * coefficientHeight, 0);
-    final acAlpha = List<double>.filled(coefficientWidth * coefficientHeight, 0);
+    final acBytes = bytes.sublist(5, expectedLength);
+    final coefficientCount = coefficientWidth * coefficientHeight;
+    final acRed = List<double>.filled(coefficientCount, 0);
+    final acGreen = List<double>.filled(coefficientCount, 0);
+    final acBlue = List<double>.filled(coefficientCount, 0);
+    final acAlpha = List<double>.filled(coefficientCount, 0);
 
     var acIndex = 0;
     for (var coefficientY = 0; coefficientY < coefficientHeight; coefficientY++) {
@@ -56,12 +53,8 @@ class _DotdartThumbhashDecoder {
           for (var coefficientX = 0; coefficientX < coefficientWidth; coefficientX++) {
             if (coefficientX == 0 && coefficientY == 0) continue;
             final index = coefficientY * coefficientWidth + coefficientX;
-            final cosineX = math.cos(
-              math.pi / coefficientWidth * (x + 0.5) * coefficientX,
-            );
-            final cosineY = math.cos(
-              math.pi / coefficientHeight * (y + 0.5) * coefficientY,
-            );
+            final cosineX = math.cos(math.pi / coefficientWidth * (x + 0.5) * coefficientX);
+            final cosineY = math.cos(math.pi / coefficientHeight * (y + 0.5) * coefficientY);
             final weight = cosineX * cosineY;
             red += acRed[index] * weight;
             green += acGreen[index] * weight;
@@ -83,11 +76,7 @@ class _DotdartThumbhashDecoder {
       }
     }
 
-    return (
-      width: coefficientWidth,
-      height: coefficientHeight,
-      pixels: pixels,
-    );
+    return (width: coefficientWidth, height: coefficientHeight, pixels: pixels);
   }
 
   static double _linearToSrgb(double linear) {
@@ -111,8 +100,5 @@ class _DotdartThumbhashDecoder {
       bits &= (1 << bitCount) - 1;
     }
     return bytes;
-  }
-}
-''';
   }
 }

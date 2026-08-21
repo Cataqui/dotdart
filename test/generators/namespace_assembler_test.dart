@@ -68,7 +68,23 @@ void main() {
     cacheAspectRatio: 0.5,
   );
 
+  const trimPathAsset = GeneratedAssetSpec(
+    sourcePath: 'assets/lotties/trim_path.json',
+    accessorName: 'trimPath',
+    widgetClassName: '_TrimPath',
+    params: [AccessorParam(name: 'key', type: 'Key?')],
+    widgetSource: 'class _TrimPath extends StatefulWidget {}',
+    assetType: DotdartAssetType.lottie,
+    requiresPathMetrics: true,
+  );
+
   group('NamespaceAssembler', () {
+    test('when a generated asset uses trim paths, it should import Flutter path metrics', () {
+      final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [trimPathAsset]);
+
+      expect(assembler.assemble(), contains("import 'dart:ui' show PathMetric;"));
+    });
+
     test('when assembling a namespace with one asset, it should include the generated code header', () {
       final assembler = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]);
       final code = assembler.assemble();
@@ -95,6 +111,16 @@ void main() {
           contains("import 'package:flutter/rendering.dart' show OverflowBoxFit;"),
         ),
       );
+    });
+
+    test('when assembling only images, it should omit animation math imports', () {
+      final assembler = NamespaceAssembler(
+        namespaceName: 'Images',
+        folderSegment: 'images',
+        assets: [rasterAsset],
+      );
+
+      expect(assembler.assemble(), isNot(contains("import 'dart:math' as math;")));
     });
 
     test('when assembling a namespace, it should emit the abstract final class with dollar prefix', () {
@@ -216,11 +242,17 @@ void main() {
       expect(code, contains('mixin _DotdartLottieAnimationState<T extends StatefulWidget>'));
     });
 
-    test('when assembling Lottie assets, it should explicitly discard the animation repeat future', () {
+    test('when assembling Lottie assets, it should import and export the shared playback enum', () {
       final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [lottieAsset]);
       final code = assembler.assemble();
 
-      expect(code, allOf(contains("import 'dart:async';"), contains('unawaited(_controller.repeat());')));
+      expect(
+        code,
+        allOf(
+          contains("import 'dotdart.g.dart' show LottiePlayback;"),
+          contains("export 'dotdart.g.dart' show LottiePlayback;"),
+        ),
+      );
     });
 
     test('when assembling Lottie assets, it should not emit the SVG sizing mixin', () {
@@ -254,7 +286,7 @@ void main() {
         allOf(
           contains('_DotdartSvgSizing'),
           contains('_DotdartLottieAnimationState'),
-          contains('_DotdartThumbhashDecoder'),
+          contains('_DotdartThumbhashPainter'),
           contains(r'abstract final class $IconsCache'),
         ),
       );

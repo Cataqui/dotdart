@@ -22,7 +22,14 @@ void main() {
               $Icons.fixtureIcon(width: 24),
               $Icons.lottie(width: 40, progress: 0.5),
               $Icons.photo(width: 24),
-              $Lotties.fixtureAnimation(width: 40, progress: 0.5, clip: false),
+              $Lotties.fixtureAnimation(
+                width: 40,
+                progress: 0.5,
+                clip: false,
+                delay: Duration.zero,
+                duration: const Duration(milliseconds: 500),
+                playback: LottiePlayback.once,
+              ),
               $Lotties.cataquiJobCardsCarousel(
                 width: 120,
                 progress: 0.5,

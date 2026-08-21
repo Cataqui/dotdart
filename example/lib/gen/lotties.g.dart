@@ -9,8 +9,11 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show PathMetric;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import 'dotdart.g.dart' show LottiePlayback;
+export 'dotdart.g.dart' show LottiePlayback;
 
 Color _dotdartApplyOpacity(Color color, double opacity) {
   if (opacity == 1) return color;
@@ -22,15 +25,23 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
   double? get lottieWidgetWidth;
   double? get lottieWidgetHeight;
   double? get lottieProgress;
+  Duration get lottieDelay;
+  Duration? get lottieDuration;
+  LottiePlayback get lottiePlayback;
   bool get lottieRespectDisableAnimations;
   bool get lottieMaintainAspectRatio;
-  Duration get lottieLoopDuration;
+  Duration get lottieNativeDuration;
   double get lottieCanvasWidth;
   double get lottieCanvasHeight;
 
   Widget buildPainter({required double width, required double height});
 
   late final AnimationController _controller;
+  Timer? _delayTimer;
+  Duration? _scheduledDelay;
+  Duration? _activeDuration;
+  LottiePlayback? _activePlayback;
+  bool _hasCompletedInitialDelay = false;
   bool _canAnimateForLifecycle = true;
 
   bool _shouldAnimate() {
@@ -42,12 +53,69 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
         !disableAnimations;
   }
 
-  void _syncController() {
-    if (_shouldAnimate()) {
-      if (!_controller.isAnimating) unawaited(_controller.repeat());
+  void _validateTiming() {
+    if (lottieDelay.isNegative) {
+      throw ArgumentError.value(lottieDelay, 'delay', 'must not be negative');
+    }
+    if (lottieDuration != null && lottieDuration! <= Duration.zero) {
+      throw ArgumentError.value(
+        lottieDuration,
+        'duration',
+        'must be greater than zero',
+      );
+    }
+  }
+
+  void _startPlayback() {
+    final duration = lottieDuration ?? lottieNativeDuration;
+    if (_controller.isAnimating &&
+        _activeDuration == duration &&
+        _activePlayback == lottiePlayback) {
       return;
     }
     _controller.stop();
+    _controller.duration = duration;
+    _activeDuration = duration;
+    _activePlayback = lottiePlayback;
+    switch (lottiePlayback) {
+      case LottiePlayback.once:
+        unawaited(_controller.forward());
+      case LottiePlayback.loop:
+        unawaited(_controller.repeat());
+    }
+  }
+
+  void _syncController() {
+    _validateTiming();
+    if (!_shouldAnimate()) {
+      _delayTimer?.cancel();
+      _delayTimer = null;
+      _scheduledDelay = null;
+      _controller.stop();
+      return;
+    }
+
+    if (_hasCompletedInitialDelay || lottieDelay == Duration.zero) {
+      _hasCompletedInitialDelay = true;
+      _delayTimer?.cancel();
+      _delayTimer = null;
+      _scheduledDelay = null;
+      _startPlayback();
+      return;
+    }
+
+    if ((_delayTimer?.isActive ?? false) && _scheduledDelay == lottieDelay) {
+      return;
+    }
+    _delayTimer?.cancel();
+    _scheduledDelay = lottieDelay;
+    _delayTimer = Timer(lottieDelay, () {
+      _delayTimer = null;
+      _scheduledDelay = null;
+      if (!_shouldAnimate()) return;
+      _hasCompletedInitialDelay = true;
+      _startPlayback();
+    });
   }
 
   Size _defaultSizeFor(BoxConstraints constraints) {
@@ -67,7 +135,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: lottieLoopDuration,
+      duration: lottieNativeDuration,
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -87,6 +155,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _delayTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -150,6 +219,9 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget>
 /// ```dart
 /// $Lotties.pulse(<params>);
 /// ```
+/// ```dart
+/// $Lotties.trimPath(<params>);
+/// ```
 abstract final class $Lotties {
   $Lotties._();
 
@@ -161,6 +233,9 @@ abstract final class $Lotties {
     bool maintainAspectRatio = true,
     bool clip = true,
     double? progress,
+    Duration delay = Duration.zero,
+    Duration? duration,
+    LottiePlayback playback = LottiePlayback.once,
     bool respectDisableAnimations = true,
     CataquiJobCardsCarouselOverrides overrides =
         const CataquiJobCardsCarouselOverrides(),
@@ -171,6 +246,9 @@ abstract final class $Lotties {
     maintainAspectRatio: maintainAspectRatio,
     clip: clip,
     progress: progress,
+    delay: delay,
+    duration: duration,
+    playback: playback,
     respectDisableAnimations: respectDisableAnimations,
     overrides: overrides,
   );
@@ -183,6 +261,9 @@ abstract final class $Lotties {
     bool maintainAspectRatio = true,
     bool clip = true,
     double? progress,
+    Duration delay = Duration.zero,
+    Duration? duration,
+    LottiePlayback playback = LottiePlayback.once,
     bool respectDisableAnimations = true,
     PulseOverrides overrides = const PulseOverrides(),
   }) => _Pulse(
@@ -192,6 +273,36 @@ abstract final class $Lotties {
     maintainAspectRatio: maintainAspectRatio,
     clip: clip,
     progress: progress,
+    delay: delay,
+    duration: duration,
+    playback: playback,
+    respectDisableAnimations: respectDisableAnimations,
+    overrides: overrides,
+  );
+
+  /// Builds the `TrimPath` widget from `trimPath.json`.
+  static Widget trimPath({
+    Key? key,
+    double? width,
+    double? height,
+    bool maintainAspectRatio = true,
+    bool clip = true,
+    double? progress,
+    Duration delay = Duration.zero,
+    Duration? duration,
+    LottiePlayback playback = LottiePlayback.once,
+    bool respectDisableAnimations = true,
+    TrimPathOverrides overrides = const TrimPathOverrides(),
+  }) => _TrimPath(
+    key: key,
+    width: width,
+    height: height,
+    maintainAspectRatio: maintainAspectRatio,
+    clip: clip,
+    progress: progress,
+    delay: delay,
+    duration: duration,
+    playback: playback,
     respectDisableAnimations: respectDisableAnimations,
     overrides: overrides,
   );
@@ -486,7 +597,7 @@ final class CataquiJobCardsCarouselOverrides {
 
 /// A dotdart-generated animated widget from `assets/lotties/cataqui_job_cards_carousel.json`.
 ///
-/// Renders a 18000ms looping animation
+/// Renders a 18000ms animation
 /// (1080 frames at 60.0Hz)
 /// on a 458×540 canvas.
 /// No Lottie runtime dependency — the animation is drawn
@@ -499,6 +610,9 @@ class _CataquiJobCardsCarousel extends StatefulWidget {
     this.maintainAspectRatio = true,
     this.clip = true,
     this.progress,
+    this.delay = Duration.zero,
+    this.duration,
+    this.playback = LottiePlayback.once,
     this.respectDisableAnimations = true,
     this.overrides = const CataquiJobCardsCarouselOverrides(),
   });
@@ -506,7 +620,7 @@ class _CataquiJobCardsCarousel extends StatefulWidget {
   static const double _lottieWidth = 458;
   static const double _lottieHeight = 540;
   static const int _totalFrames = 1080;
-  static const Duration _loopDuration = Duration(milliseconds: 18000);
+  static const Duration _nativeDuration = Duration(milliseconds: 18000);
 
   /// Width in logical pixels.
   final double? width;
@@ -522,6 +636,15 @@ class _CataquiJobCardsCarousel extends StatefulWidget {
 
   /// Fixed animation progress from 0 to 1.
   final double? progress;
+
+  /// Non-negative time to wait once before automatic playback starts.
+  final Duration delay;
+
+  /// Positive total playback time. When null, uses the duration from the Lottie file.
+  final Duration? duration;
+
+  /// Whether automatic playback runs once or loops continuously.
+  final LottiePlayback playback;
 
   /// Whether reduced-motion settings pause playback.
   final bool respectDisableAnimations;
@@ -554,10 +677,19 @@ class _CataquiJobCardsCarouselState extends State<_CataquiJobCardsCarousel>
   double? get lottieProgress => widget.progress;
 
   @override
+  Duration get lottieDelay => widget.delay;
+
+  @override
+  Duration? get lottieDuration => widget.duration;
+
+  @override
+  LottiePlayback get lottiePlayback => widget.playback;
+
+  @override
   bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;
 
   @override
-  Duration get lottieLoopDuration => _CataquiJobCardsCarousel._loopDuration;
+  Duration get lottieNativeDuration => _CataquiJobCardsCarousel._nativeDuration;
 
   @override
   double get lottieCanvasWidth => _CataquiJobCardsCarousel._lottieWidth;
@@ -620,29 +752,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes0Opacity(double frame) {
     if (frame <= 0) return 100;
     if (frame >= 1080) return 100;
-    if (frame < 90) {
-      return 100;
-    }
     if (frame < 90.01) {
       return 100;
-    }
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 900) {
-      return 0;
-    }
-    if (frame < 990) {
-      return 0;
     }
     if (frame < 990.01) {
       return 0;
@@ -782,32 +893,11 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes1Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 90) {
-      return 0;
-    }
     if (frame < 90.01) {
       return 0;
     }
-    if (frame < 180) {
-      return 100;
-    }
-    if (frame < 270) {
-      return 100;
-    }
     if (frame < 270.01) {
       return 100;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 900) {
-      return 0;
     }
     if (frame < 1080) {
       return 0;
@@ -944,32 +1034,11 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes2Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 270) {
-      return 0;
-    }
     if (frame < 270.01) {
       return 0;
     }
-    if (frame < 360) {
-      return 100;
-    }
-    if (frame < 450) {
-      return 100;
-    }
     if (frame < 450.01) {
       return 100;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 900) {
-      return 0;
     }
     if (frame < 1080) {
       return 0;
@@ -1106,32 +1175,11 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes3Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 450) {
-      return 0;
-    }
     if (frame < 450.01) {
       return 0;
     }
-    if (frame < 540) {
-      return 100;
-    }
-    if (frame < 630) {
-      return 100;
-    }
     if (frame < 630.01) {
       return 100;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 900) {
-      return 0;
     }
     if (frame < 1080) {
       return 0;
@@ -1268,32 +1316,11 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes4Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 630) {
-      return 0;
-    }
     if (frame < 630.01) {
       return 0;
     }
-    if (frame < 720) {
-      return 100;
-    }
-    if (frame < 810) {
-      return 100;
-    }
     if (frame < 810.01) {
       return 100;
-    }
-    if (frame < 900) {
-      return 0;
     }
     if (frame < 1080) {
       return 0;
@@ -1430,29 +1457,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes5Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 810) {
-      return 0;
-    }
     if (frame < 810.01) {
       return 0;
-    }
-    if (frame < 900) {
-      return 100;
-    }
-    if (frame < 990) {
-      return 100;
     }
     if (frame < 990.01) {
       return 100;
@@ -1592,9 +1598,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes6Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 90) {
-      return 0;
-    }
     if (frame < 90.01) {
       return 0;
     }
@@ -1606,9 +1609,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 100 + -100 * eased;
     }
-    if (frame < 540) {
-      return 0;
-    }
     if (frame < 720) {
       return 0;
     }
@@ -1616,9 +1616,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final t = (frame - 720) / 180;
       final eased = t;
       return 0 + 100 * eased;
-    }
-    if (frame < 990) {
-      return 100;
     }
     if (frame < 990.01) {
       return 100;
@@ -1758,17 +1755,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes7Opacity(double frame) {
     if (frame <= 0) return 100;
     if (frame >= 1080) return 100;
-    if (frame < 90) {
-      return 100;
-    }
     if (frame < 90.01) {
       return 100;
-    }
-    if (frame < 180) {
-      return 0;
-    }
-    if (frame < 270) {
-      return 0;
     }
     if (frame < 270.01) {
       return 0;
@@ -1780,9 +1768,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final t = (frame - 360) / 180;
       final eased = t;
       return 100 + -100 * eased;
-    }
-    if (frame < 720) {
-      return 0;
     }
     if (frame < 900) {
       return 0;
@@ -1929,17 +1914,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 0 + 100 * eased;
     }
-    if (frame < 270) {
-      return 100;
-    }
     if (frame < 270.01) {
       return 100;
-    }
-    if (frame < 360) {
-      return 0;
-    }
-    if (frame < 450) {
-      return 0;
     }
     if (frame < 450.01) {
       return 0;
@@ -1951,9 +1927,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final t = (frame - 540) / 180;
       final eased = t;
       return 100 + -100 * eased;
-    }
-    if (frame < 900) {
-      return 0;
     }
     if (frame < 1080) {
       return 0;
@@ -2098,17 +2071,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 0 + 100 * eased;
     }
-    if (frame < 450) {
-      return 100;
-    }
     if (frame < 450.01) {
       return 100;
-    }
-    if (frame < 540) {
-      return 0;
-    }
-    if (frame < 630) {
-      return 0;
     }
     if (frame < 630.01) {
       return 0;
@@ -2256,9 +2220,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   double _keyframes10Opacity(double frame) {
     if (frame <= 0) return 0;
     if (frame >= 1080) return 0;
-    if (frame < 180) {
-      return 0;
-    }
     if (frame < 360) {
       return 0;
     }
@@ -2267,17 +2228,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 0 + 100 * eased;
     }
-    if (frame < 630) {
-      return 100;
-    }
     if (frame < 630.01) {
       return 100;
-    }
-    if (frame < 720) {
-      return 0;
-    }
-    if (frame < 810) {
-      return 0;
     }
     if (frame < 810.01) {
       return 0;
@@ -2427,9 +2379,6 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 100 + -100 * eased;
     }
-    if (frame < 360) {
-      return 0;
-    }
     if (frame < 540) {
       return 0;
     }
@@ -2438,17 +2387,8 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
       final eased = t;
       return 0 + 100 * eased;
     }
-    if (frame < 810) {
-      return 100;
-    }
     if (frame < 810.01) {
       return 100;
-    }
-    if (frame < 900) {
-      return 0;
-    }
-    if (frame < 990) {
-      return 0;
     }
     if (frame < 990.01) {
       return 0;
@@ -10335,22 +10275,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter18Color;
   Offset _textPainter18Offset = Offset.zero;
 
+  TextSpan _textSpanFor18(Color color) {
+    return TextSpan(
+      text: overrides.jobCard01TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor18(Color color) {
     final cached = _textPainter18;
-    if (cached != null && _textPainter18Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter18Color != color) {
+        _textPainter18Color = color;
+        cached.text = _textSpanFor18(color);
+      }
+      return cached;
+    }
     _textPainter18Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard01TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor18(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10365,23 +10314,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter19Color;
   Offset _textPainter19Offset = Offset.zero;
 
+  TextSpan _textSpanFor19(Color color) {
+    return TextSpan(
+      text: overrides.jobCard01TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor19(Color color) {
     final cached = _textPainter19;
-    if (cached != null && _textPainter19Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter19Color != color) {
+        _textPainter19Color = color;
+        cached.text = _textSpanFor19(color);
+      }
+      return cached;
+    }
     _textPainter19Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard01TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor19(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10396,23 +10354,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter20Color;
   Offset _textPainter20Offset = Offset.zero;
 
+  TextSpan _textSpanFor20(Color color) {
+    return TextSpan(
+      text: overrides.jobCard01TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor20(Color color) {
     final cached = _textPainter20;
-    if (cached != null && _textPainter20Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter20Color != color) {
+        _textPainter20Color = color;
+        cached.text = _textSpanFor20(color);
+      }
+      return cached;
+    }
     _textPainter20Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard01TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor20(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10426,25 +10393,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter21;
   Color? _textPainter21Color;
 
+  TextSpan _textSpanFor21(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard01TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor21(Color color) {
     final cached = _textPainter21;
-    if (cached != null && _textPainter21Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter21Color != color) {
+        _textPainter21Color = color;
+        cached.text = _textSpanFor21(color);
+      }
+      return cached;
+    }
     _textPainter21Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard01TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor21(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -10456,22 +10432,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter23Color;
   Offset _textPainter23Offset = Offset.zero;
 
+  TextSpan _textSpanFor23(Color color) {
+    return TextSpan(
+      text: overrides.jobCard02TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor23(Color color) {
     final cached = _textPainter23;
-    if (cached != null && _textPainter23Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter23Color != color) {
+        _textPainter23Color = color;
+        cached.text = _textSpanFor23(color);
+      }
+      return cached;
+    }
     _textPainter23Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard02TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor23(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10486,23 +10471,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter24Color;
   Offset _textPainter24Offset = Offset.zero;
 
+  TextSpan _textSpanFor24(Color color) {
+    return TextSpan(
+      text: overrides.jobCard02TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor24(Color color) {
     final cached = _textPainter24;
-    if (cached != null && _textPainter24Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter24Color != color) {
+        _textPainter24Color = color;
+        cached.text = _textSpanFor24(color);
+      }
+      return cached;
+    }
     _textPainter24Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard02TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor24(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10517,23 +10511,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter25Color;
   Offset _textPainter25Offset = Offset.zero;
 
+  TextSpan _textSpanFor25(Color color) {
+    return TextSpan(
+      text: overrides.jobCard02TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor25(Color color) {
     final cached = _textPainter25;
-    if (cached != null && _textPainter25Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter25Color != color) {
+        _textPainter25Color = color;
+        cached.text = _textSpanFor25(color);
+      }
+      return cached;
+    }
     _textPainter25Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard02TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor25(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10547,25 +10550,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter26;
   Color? _textPainter26Color;
 
+  TextSpan _textSpanFor26(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard02TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor26(Color color) {
     final cached = _textPainter26;
-    if (cached != null && _textPainter26Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter26Color != color) {
+        _textPainter26Color = color;
+        cached.text = _textSpanFor26(color);
+      }
+      return cached;
+    }
     _textPainter26Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard02TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor26(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -10577,22 +10589,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter28Color;
   Offset _textPainter28Offset = Offset.zero;
 
+  TextSpan _textSpanFor28(Color color) {
+    return TextSpan(
+      text: overrides.jobCard03TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor28(Color color) {
     final cached = _textPainter28;
-    if (cached != null && _textPainter28Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter28Color != color) {
+        _textPainter28Color = color;
+        cached.text = _textSpanFor28(color);
+      }
+      return cached;
+    }
     _textPainter28Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard03TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor28(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10607,23 +10628,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter29Color;
   Offset _textPainter29Offset = Offset.zero;
 
+  TextSpan _textSpanFor29(Color color) {
+    return TextSpan(
+      text: overrides.jobCard03TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor29(Color color) {
     final cached = _textPainter29;
-    if (cached != null && _textPainter29Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter29Color != color) {
+        _textPainter29Color = color;
+        cached.text = _textSpanFor29(color);
+      }
+      return cached;
+    }
     _textPainter29Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard03TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor29(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10638,23 +10668,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter30Color;
   Offset _textPainter30Offset = Offset.zero;
 
+  TextSpan _textSpanFor30(Color color) {
+    return TextSpan(
+      text: overrides.jobCard03TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor30(Color color) {
     final cached = _textPainter30;
-    if (cached != null && _textPainter30Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter30Color != color) {
+        _textPainter30Color = color;
+        cached.text = _textSpanFor30(color);
+      }
+      return cached;
+    }
     _textPainter30Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard03TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor30(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10668,25 +10707,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter31;
   Color? _textPainter31Color;
 
+  TextSpan _textSpanFor31(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard03TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor31(Color color) {
     final cached = _textPainter31;
-    if (cached != null && _textPainter31Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter31Color != color) {
+        _textPainter31Color = color;
+        cached.text = _textSpanFor31(color);
+      }
+      return cached;
+    }
     _textPainter31Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard03TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor31(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -10698,22 +10746,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter33Color;
   Offset _textPainter33Offset = Offset.zero;
 
+  TextSpan _textSpanFor33(Color color) {
+    return TextSpan(
+      text: overrides.jobCard04TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor33(Color color) {
     final cached = _textPainter33;
-    if (cached != null && _textPainter33Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter33Color != color) {
+        _textPainter33Color = color;
+        cached.text = _textSpanFor33(color);
+      }
+      return cached;
+    }
     _textPainter33Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard04TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor33(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10728,23 +10785,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter34Color;
   Offset _textPainter34Offset = Offset.zero;
 
+  TextSpan _textSpanFor34(Color color) {
+    return TextSpan(
+      text: overrides.jobCard04TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor34(Color color) {
     final cached = _textPainter34;
-    if (cached != null && _textPainter34Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter34Color != color) {
+        _textPainter34Color = color;
+        cached.text = _textSpanFor34(color);
+      }
+      return cached;
+    }
     _textPainter34Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard04TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor34(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10759,23 +10825,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter35Color;
   Offset _textPainter35Offset = Offset.zero;
 
+  TextSpan _textSpanFor35(Color color) {
+    return TextSpan(
+      text: overrides.jobCard04TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor35(Color color) {
     final cached = _textPainter35;
-    if (cached != null && _textPainter35Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter35Color != color) {
+        _textPainter35Color = color;
+        cached.text = _textSpanFor35(color);
+      }
+      return cached;
+    }
     _textPainter35Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard04TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor35(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10789,25 +10864,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter36;
   Color? _textPainter36Color;
 
+  TextSpan _textSpanFor36(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard04TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor36(Color color) {
     final cached = _textPainter36;
-    if (cached != null && _textPainter36Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter36Color != color) {
+        _textPainter36Color = color;
+        cached.text = _textSpanFor36(color);
+      }
+      return cached;
+    }
     _textPainter36Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard04TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor36(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -10819,22 +10903,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter38Color;
   Offset _textPainter38Offset = Offset.zero;
 
+  TextSpan _textSpanFor38(Color color) {
+    return TextSpan(
+      text: overrides.jobCard05TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor38(Color color) {
     final cached = _textPainter38;
-    if (cached != null && _textPainter38Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter38Color != color) {
+        _textPainter38Color = color;
+        cached.text = _textSpanFor38(color);
+      }
+      return cached;
+    }
     _textPainter38Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard05TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor38(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10849,23 +10942,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter39Color;
   Offset _textPainter39Offset = Offset.zero;
 
+  TextSpan _textSpanFor39(Color color) {
+    return TextSpan(
+      text: overrides.jobCard05TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor39(Color color) {
     final cached = _textPainter39;
-    if (cached != null && _textPainter39Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter39Color != color) {
+        _textPainter39Color = color;
+        cached.text = _textSpanFor39(color);
+      }
+      return cached;
+    }
     _textPainter39Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard05TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor39(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10880,23 +10982,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter40Color;
   Offset _textPainter40Offset = Offset.zero;
 
+  TextSpan _textSpanFor40(Color color) {
+    return TextSpan(
+      text: overrides.jobCard05TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor40(Color color) {
     final cached = _textPainter40;
-    if (cached != null && _textPainter40Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter40Color != color) {
+        _textPainter40Color = color;
+        cached.text = _textSpanFor40(color);
+      }
+      return cached;
+    }
     _textPainter40Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard05TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor40(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10910,25 +11021,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter41;
   Color? _textPainter41Color;
 
+  TextSpan _textSpanFor41(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard05TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor41(Color color) {
     final cached = _textPainter41;
-    if (cached != null && _textPainter41Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter41Color != color) {
+        _textPainter41Color = color;
+        cached.text = _textSpanFor41(color);
+      }
+      return cached;
+    }
     _textPainter41Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard05TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor41(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -10940,22 +11060,31 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter43Color;
   Offset _textPainter43Offset = Offset.zero;
 
+  TextSpan _textSpanFor43(Color color) {
+    return TextSpan(
+      text: overrides.jobCard06TextPostedTimeText ?? '1 dia atrás',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 9.7354,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor43(Color color) {
     final cached = _textPainter43;
-    if (cached != null && _textPainter43Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter43Color != color) {
+        _textPainter43Color = color;
+        cached.text = _textSpanFor43(color);
+      }
+      return cached;
+    }
     _textPainter43Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard06TextPostedTimeText ?? '1 dia atrás',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 9.7354,
-          fontWeight: FontWeight.w500,
-          height: 1.2,
-        ),
-      ),
+      text: _textSpanFor43(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -10970,23 +11099,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter44Color;
   Offset _textPainter44Offset = Offset.zero;
 
+  TextSpan _textSpanFor44(Color color) {
+    return TextSpan(
+      text: overrides.jobCard06TextJobTitleText ?? 'Garçom',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 16.2412,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3248,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor44(Color color) {
     final cached = _textPainter44;
-    if (cached != null && _textPainter44Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter44Color != color) {
+        _textPainter44Color = color;
+        cached.text = _textSpanFor44(color);
+      }
+      return cached;
+    }
     _textPainter44Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard06TextJobTitleText ?? 'Garçom',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 16.2412,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3248,
-        ),
-      ),
+      text: _textSpanFor44(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -11001,23 +11139,32 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   Color? _textPainter45Color;
   Offset _textPainter45Offset = Offset.zero;
 
+  TextSpan _textSpanFor45(Color color) {
+    return TextSpan(
+      text: overrides.jobCard06TextPayText ?? r'R$100/dia',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 18.59,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+        letterSpacing: -0.3718,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor45(Color color) {
     final cached = _textPainter45;
-    if (cached != null && _textPainter45Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter45Color != color) {
+        _textPainter45Color = color;
+        cached.text = _textSpanFor45(color);
+      }
+      return cached;
+    }
     _textPainter45Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text: overrides.jobCard06TextPayText ?? r'R$100/dia',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 18.59,
-          fontWeight: FontWeight.w600,
-          height: 1.2,
-          letterSpacing: -0.3718,
-        ),
-      ),
+      text: _textSpanFor45(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
     )..layout(maxWidth: double.infinity);
@@ -11031,25 +11178,34 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   TextPainter? _textPainter46;
   Color? _textPainter46Color;
 
+  TextSpan _textSpanFor46(Color color) {
+    return TextSpan(
+      text:
+          overrides.jobCard06TextDescriptionText ??
+          'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
+      style: TextStyle(
+        color: color,
+        fontFamily: 'Inter',
+        fontSize: 11.3405,
+        fontWeight: FontWeight.w500,
+        height: 1.3227,
+        letterSpacing: -0.2268,
+      ),
+    );
+  }
+
   TextPainter _textPainterFor46(Color color) {
     final cached = _textPainter46;
-    if (cached != null && _textPainter46Color == color) return cached;
-    cached?.dispose();
+    if (cached != null) {
+      if (_textPainter46Color != color) {
+        _textPainter46Color = color;
+        cached.text = _textSpanFor46(color);
+      }
+      return cached;
+    }
     _textPainter46Color = color;
     final painter = TextPainter(
-      text: TextSpan(
-        text:
-            overrides.jobCard06TextDescriptionText ??
-            'Preciso de um garçom para 3 dias em um evento. Precisa ter experiência e já ter participado de eventos',
-        style: TextStyle(
-          color: color,
-          fontFamily: 'Inter',
-          fontSize: 11.3405,
-          fontWeight: FontWeight.w500,
-          height: 1.3227,
-          letterSpacing: -0.2268,
-        ),
-      ),
+      text: _textSpanFor46(color),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
       maxLines: 4,
@@ -11060,8 +11216,10 @@ class _CataquiJobCardsCarouselPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final progress = _animationProgress?.value ?? _fixedProgress;
-    final frame = progress * _CataquiJobCardsCarousel._totalFrames;
-    if (frame >= 1080) return;
+    final frame = math.min(
+      1079.999999,
+      progress * _CataquiJobCardsCarousel._totalFrames,
+    );
 
     canvas.save();
     if (clip) canvas.clipRect(_canvasRect);
@@ -12164,7 +12322,7 @@ final class PulseOverrides {
 
 /// A dotdart-generated animated widget from `assets/lotties/pulse.json`.
 ///
-/// Renders a 1000ms looping animation
+/// Renders a 1000ms animation
 /// (30 frames at 30.0Hz)
 /// on a 100×100 canvas.
 /// No Lottie runtime dependency — the animation is drawn
@@ -12177,6 +12335,9 @@ class _Pulse extends StatefulWidget {
     this.maintainAspectRatio = true,
     this.clip = true,
     this.progress,
+    this.delay = Duration.zero,
+    this.duration,
+    this.playback = LottiePlayback.once,
     this.respectDisableAnimations = true,
     this.overrides = const PulseOverrides(),
   });
@@ -12184,7 +12345,7 @@ class _Pulse extends StatefulWidget {
   static const double _lottieWidth = 100;
   static const double _lottieHeight = 100;
   static const int _totalFrames = 30;
-  static const Duration _loopDuration = Duration(milliseconds: 1000);
+  static const Duration _nativeDuration = Duration(milliseconds: 1000);
 
   /// Width in logical pixels.
   final double? width;
@@ -12200,6 +12361,15 @@ class _Pulse extends StatefulWidget {
 
   /// Fixed animation progress from 0 to 1.
   final double? progress;
+
+  /// Non-negative time to wait once before automatic playback starts.
+  final Duration delay;
+
+  /// Positive total playback time. When null, uses the duration from the Lottie file.
+  final Duration? duration;
+
+  /// Whether automatic playback runs once or loops continuously.
+  final LottiePlayback playback;
 
   /// Whether reduced-motion settings pause playback.
   final bool respectDisableAnimations;
@@ -12229,10 +12399,19 @@ class _PulseState extends State<_Pulse>
   double? get lottieProgress => widget.progress;
 
   @override
+  Duration get lottieDelay => widget.delay;
+
+  @override
+  Duration? get lottieDuration => widget.duration;
+
+  @override
+  LottiePlayback get lottiePlayback => widget.playback;
+
+  @override
   bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;
 
   @override
-  Duration get lottieLoopDuration => _Pulse._loopDuration;
+  Duration get lottieNativeDuration => _Pulse._nativeDuration;
 
   @override
   double get lottieCanvasWidth => _Pulse._lottieWidth;
@@ -12350,8 +12529,7 @@ class _PulsePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final progress = _animationProgress?.value ?? _fixedProgress;
-    final frame = progress * _Pulse._totalFrames;
-    if (frame >= 30) return;
+    final frame = math.min(29.999999, progress * _Pulse._totalFrames);
 
     canvas.save();
     if (clip) canvas.clipRect(_canvasRect);
@@ -12383,6 +12561,303 @@ class _PulsePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PulsePainter oldDelegate) {
+    return oldDelegate._fixedProgress != _fixedProgress ||
+        oldDelegate._canvasScaleX != _canvasScaleX ||
+        oldDelegate._canvasScaleY != _canvasScaleY ||
+        oldDelegate._canvasRect != _canvasRect ||
+        oldDelegate._animationProgress != _animationProgress ||
+        oldDelegate.clip != clip ||
+        oldDelegate.overrides != overrides;
+  }
+}
+
+/// Text and color values that replace defaults in `trim_path.json`.
+final class TrimPathOverrides {
+  /// Creates Lottie value overrides.
+  const TrimPathOverrides({this.lineColor});
+
+  /// Replacement color for the `Line` Lottie layer.
+  final Color? lineColor;
+}
+
+/// A dotdart-generated animated widget from `assets/lotties/trim_path.json`.
+///
+/// Renders a 1000ms animation
+/// (30 frames at 30.0Hz)
+/// on a 100×40 canvas.
+/// No Lottie runtime dependency — the animation is drawn
+/// entirely via [CustomPainter].
+class _TrimPath extends StatefulWidget {
+  const _TrimPath({
+    super.key,
+    this.width,
+    this.height,
+    this.maintainAspectRatio = true,
+    this.clip = true,
+    this.progress,
+    this.delay = Duration.zero,
+    this.duration,
+    this.playback = LottiePlayback.once,
+    this.respectDisableAnimations = true,
+    this.overrides = const TrimPathOverrides(),
+  });
+
+  static const double _lottieWidth = 100;
+  static const double _lottieHeight = 40;
+  static const int _totalFrames = 30;
+  static const Duration _nativeDuration = Duration(milliseconds: 1000);
+
+  /// Width in logical pixels.
+  final double? width;
+
+  /// Height in logical pixels.
+  final double? height;
+
+  /// When true (default), keeps the native aspect ratio using the larger requested value as the reference. When false, both dimensions are applied as-is and the asset may distort.
+  final bool maintainAspectRatio;
+
+  /// Whether painting is clipped to the Lottie canvas bounds.
+  final bool clip;
+
+  /// Fixed animation progress from 0 to 1.
+  final double? progress;
+
+  /// Non-negative time to wait once before automatic playback starts.
+  final Duration delay;
+
+  /// Positive total playback time. When null, uses the duration from the Lottie file.
+  final Duration? duration;
+
+  /// Whether automatic playback runs once or loops continuously.
+  final LottiePlayback playback;
+
+  /// Whether reduced-motion settings pause playback.
+  final bool respectDisableAnimations;
+
+  /// Text and color values that replace defaults from the Lottie file.
+  final TrimPathOverrides overrides;
+
+  @override
+  State<_TrimPath> createState() => _TrimPathState();
+}
+
+class _TrimPathState extends State<_TrimPath>
+    with
+        SingleTickerProviderStateMixin,
+        WidgetsBindingObserver,
+        _DotdartLottieAnimationState<_TrimPath> {
+  @override
+  double? get lottieWidgetWidth => widget.width;
+
+  @override
+  double? get lottieWidgetHeight => widget.height;
+
+  @override
+  bool get lottieMaintainAspectRatio => widget.maintainAspectRatio;
+
+  @override
+  double? get lottieProgress => widget.progress;
+
+  @override
+  Duration get lottieDelay => widget.delay;
+
+  @override
+  Duration? get lottieDuration => widget.duration;
+
+  @override
+  LottiePlayback get lottiePlayback => widget.playback;
+
+  @override
+  bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;
+
+  @override
+  Duration get lottieNativeDuration => _TrimPath._nativeDuration;
+
+  @override
+  double get lottieCanvasWidth => _TrimPath._lottieWidth;
+
+  @override
+  double get lottieCanvasHeight => _TrimPath._lottieHeight;
+
+  @override
+  Widget buildPainter({required double width, required double height}) {
+    return SizedBox.fromSize(
+      size: Size(width, height),
+      child: RepaintBoundary(
+        child: CustomPaint(
+          painter: _TrimPathPainter(
+            animationProgress: widget.progress == null ? _controller : null,
+            fixedProgress: (widget.progress ?? 0).clamp(0, 1).toDouble(),
+            canvasScaleX: width / _TrimPath._lottieWidth,
+            canvasScaleY: height / _TrimPath._lottieHeight,
+            canvasRect: Rect.fromLTWH(0, 0, width, height),
+            clip: widget.clip,
+            overrides: widget.overrides,
+          ),
+          size: Size(width, height),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrimPathPainter extends CustomPainter {
+  _TrimPathPainter({
+    required this._fixedProgress,
+    required this._canvasScaleX,
+    required this._canvasScaleY,
+    required this._canvasRect,
+    required this.clip,
+    required this.overrides,
+    this._animationProgress,
+  }) : super(repaint: _animationProgress);
+
+  final double _fixedProgress;
+  final double _canvasScaleX;
+  final double _canvasScaleY;
+  final Rect _canvasRect;
+  final Animation<double>? _animationProgress;
+
+  final bool clip;
+
+  final TrimPathOverrides overrides;
+
+  final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;
+
+  double _keyframes0Trim0End(double frame) {
+    if (frame <= 0) return 0;
+    if (frame >= 30) return 100;
+    if (frame < 30) {
+      final t = frame / 30;
+      final eased = t;
+      return 0 + 100 * eased;
+    }
+    return 100;
+  }
+
+  static final Path __path0_0_0 = Path()
+    ..moveTo(10, 20)
+    ..cubicTo(10, 20, 90, 20, 90, 20);
+
+  static final Path _trimSourcePath0_0 = Path()
+    ..addPath(__path0_0_0, Offset.zero);
+
+  static final List<PathMetric> _trimMetrics0_0 = _trimSourcePath0_0
+      .computeMetrics()
+      .toList(growable: false);
+
+  Path _trimPath(
+    Path source,
+    List<PathMetric> metrics,
+    double totalLength,
+    double start,
+    double end,
+    double offset, {
+    required bool sequential,
+  }) {
+    final lower = math.min(start, end).clamp(0, 100).toDouble() / 100;
+    final upper = math.max(start, end).clamp(0, 100).toDouble() / 100;
+    final visibleFraction = upper - lower;
+    if (visibleFraction <= 0) return Path();
+    if (visibleFraction >= 1) return source;
+    final normalizedStart = (lower + offset / 360) % 1;
+    final normalizedEnd = normalizedStart + visibleFraction;
+    final result = Path()..fillType = source.fillType;
+    if (sequential) {
+      if (totalLength <= 0) return result;
+      _appendTrimRange(
+        result,
+        metrics,
+        normalizedStart * totalLength,
+        math.min(1, normalizedEnd) * totalLength,
+      );
+      if (normalizedEnd > 1) {
+        _appendTrimRange(result, metrics, 0, (normalizedEnd - 1) * totalLength);
+      }
+      return result;
+    }
+    for (final metric in metrics) {
+      result.addPath(
+        metric.extractPath(
+          normalizedStart * metric.length,
+          math.min(1, normalizedEnd) * metric.length,
+        ),
+        Offset.zero,
+      );
+      if (normalizedEnd > 1) {
+        result.addPath(
+          metric.extractPath(0, (normalizedEnd - 1) * metric.length),
+          Offset.zero,
+        );
+      }
+    }
+    return result;
+  }
+
+  void _appendTrimRange(
+    Path destination,
+    List<PathMetric> metrics,
+    double start,
+    double end,
+  ) {
+    var metricStart = 0.0;
+    for (final metric in metrics) {
+      final metricEnd = metricStart + metric.length;
+      final overlapStart = math.max(start, metricStart);
+      final overlapEnd = math.min(end, metricEnd);
+      if (overlapStart < overlapEnd) {
+        destination.addPath(
+          metric.extractPath(
+            overlapStart - metricStart,
+            overlapEnd - metricStart,
+          ),
+          Offset.zero,
+        );
+      }
+      metricStart = metricEnd;
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final progress = _animationProgress?.value ?? _fixedProgress;
+    final frame = math.min(29.999999, progress * _TrimPath._totalFrames);
+
+    canvas.save();
+    if (clip) canvas.clipRect(_canvasRect);
+    canvas.scale(_canvasScaleX, _canvasScaleY);
+
+    _drawLine0(canvas, frame, 1);
+
+    canvas.restore();
+  }
+
+  void _drawLine0(Canvas canvas, double frame, double inheritedOpacity) {
+    final layerOpacity = inheritedOpacity * 1;
+    if (layerOpacity <= 0) return;
+    // Group: Line Group
+    final trimmedPath0_0 = _trimPath(
+      _trimSourcePath0_0,
+      _trimMetrics0_0,
+      0,
+      0,
+      _keyframes0Trim0End(frame),
+      0,
+      sequential: false,
+    );
+    final trimStrokePaint0_0 = _strokePaint
+      ..color = _dotdartApplyOpacity(
+        overrides.lineColor ?? const Color(0xffff4a4b),
+        layerOpacity * 1,
+      )
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(trimmedPath0_0, trimStrokePaint0_0);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrimPathPainter oldDelegate) {
     return oldDelegate._fixedProgress != _fixedProgress ||
         oldDelegate._canvasScaleX != _canvasScaleX ||
         oldDelegate._canvasScaleY != _canvasScaleY ||

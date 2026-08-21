@@ -35,14 +35,22 @@ Supported:
 - parented layer transforms, including null controller layers
 - static text layers, including point text and paragraph boxes
 - static, non-inverted, fully opaque additive masks with zero expansion
-- transforms, opacity, trim paths, hold keyframes, and cubic Bézier easing
-- timeline playback, looping, progress control, sizing, text replacement, and
+- transforms, opacity, hold keyframes, and cubic Bézier easing
+- one static or animated trim-path modifier per shape group, including start,
+  end, offset, wraparound, default shape direction, and parallel or sequential
+  multiple-shape modes
+- timeline playback with one-time or continuous-loop modes, one-time playback
+  delay, duration override, progress control, sizing, text replacement, and
   color overrides
 - app lifecycle pause and resume behavior
 
 Generated Lottie accessors clip painting to the source canvas by default,
 matching normal Lottie-player behavior. Pass `clip: false` to allow layers to
 paint beyond that boundary.
+
+Automatic playback uses `LottiePlayback.once` by default and keeps the final
+frame visible. Pass `playback: LottiePlayback.loop` to repeat continuously.
+Manual `progress` continues to take precedence over automatic playback.
 
 Generated text and color fields live on the asset's generated `overrides`
 object and use the Lottie layer name when one is available. Named text fields
@@ -62,6 +70,8 @@ Not supported:
 - expressions, effects, precomposition time remapping, animated, translucent,
   expanded, inverted, or non-additive masks, mattes, gradients, or 3D layers
 - nested groups beyond the supported shape-group structure
+- multiple trim-path modifiers in one shape group
+- trim paths combined with reversed shape direction
 
 Unsupported layer and shape types that can be skipped safely produce build
 warnings. Features that would change rendering semantics fail generation.

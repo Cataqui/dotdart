@@ -12,3 +12,4 @@ coverage/
 doc/api/
 pubspec_overrides.yaml
 skills-lock.json
+tmp/
