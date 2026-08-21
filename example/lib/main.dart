@@ -57,7 +57,17 @@ class _DotdartExamplePageState extends State<DotdartExamplePage> {
             label: 'Lottie compiled to CustomPainter',
             child: $Lotties.pulse(
               width: 96,
+              playback: LottiePlayback.loop,
               overrides: PulseOverrides(fixtureColor: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _ExampleCard(
+            label: 'Animated Lottie trim path',
+            child: $Lotties.trimPath(
+              width: 100,
+              delay: const Duration(milliseconds: 300),
+              duration: const Duration(seconds: 2),
             ),
           ),
           const SizedBox(height: 16),
@@ -66,6 +76,7 @@ class _DotdartExamplePageState extends State<DotdartExamplePage> {
             child: Center(
               child: $Lotties.cataquiJobCardsCarousel(
                 clip: false,
+                playback: LottiePlayback.loop,
                 overrides: const CataquiJobCardsCarouselOverrides(
                   // postedTimeText: 'Agora',
                   // jobTitleText: 'Garçom para evento',

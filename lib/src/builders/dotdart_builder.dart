@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import '../generators/accessor_param.dart';
 import '../generators/generated_asset_spec.dart';
+import '../generators/generated_support_assembler.dart';
 import '../generators/image_generator.dart';
 import '../generators/lottie_generator.dart';
 import '../generators/namespace_assembler.dart';
@@ -134,6 +135,23 @@ class _DotdartBuilder implements Builder {
       outputs.add(ManifestOutput(path: outputPath, contents: assembler.assemble()));
     }
 
+    if (rawAssets.any((asset) => asset.spec.assetType == DotdartAssetType.lottie)) {
+      final outputPath = p.posix.join(config.outputDir, 'dotdart.g.dart');
+      if (outputs.any((output) => output.path == outputPath)) {
+        throw const FormatException(
+          'A source folder named "dotdart" conflicts with the shared '
+          '`dotdart.g.dart` generated for Lottie playback types. Rename the '
+          'source folder.',
+        );
+      }
+      outputs.add(
+        ManifestOutput(
+          path: outputPath,
+          contents: GeneratedSupportAssembler().assemble(),
+        ),
+      );
+    }
+
     // Collect stale file paths to delete.
     final stalePaths = _collectStalePaths(packageRoot, config.outputDir, outputs);
 
@@ -208,6 +226,7 @@ class _DotdartBuilder implements Builder {
       widgetClassName: generator.widgetClassName,
       params: generator.params,
       widgetSource: generator.generateWidgetClass(),
+      requiresPathMetrics: generator.requiresPathMetrics,
     );
   }
 
@@ -250,6 +269,7 @@ class _DotdartBuilder implements Builder {
     required String widgetSource,
     String? cacheKey,
     double? cacheAspectRatio,
+    bool requiresPathMetrics = false,
   }) {
     return DiscoveredAsset(
       assetId: assetId,
@@ -262,6 +282,7 @@ class _DotdartBuilder implements Builder {
         assetType: assetType,
         cacheKey: cacheKey,
         cacheAspectRatio: cacheAspectRatio,
+        requiresPathMetrics: requiresPathMetrics,
       ),
     );
   }

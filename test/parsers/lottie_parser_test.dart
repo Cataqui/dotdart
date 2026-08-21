@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dotdart/src/models/lottie_shape.dart';
+import 'package:dotdart/src/models/lottie_shape_enums.dart';
 import 'package:dotdart/src/parsers/lottie_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -703,6 +704,86 @@ void main() {
   });
 
   group('LottieParser shapes', () {
+    test('when parsing an animated trim path, it should retain it without warnings', () {
+      final source = File('example/assets/lotties/trim_path.json').readAsStringSync();
+
+      final result = LottieParser.parse(source);
+      final trim = result.animation.layers.single.shapeGroups.single.items.whereType<LottieTrimPath>().single;
+
+      expect(
+        (
+          result.warnings.length,
+          trim.start.staticValue,
+          trim.end.animated,
+          trim.end.keyframes.length,
+          trim.offset.staticValue,
+          trim.mode,
+        ),
+        (0, 0, true, 2, 0, LottieTrimPathMode.parallel),
+      );
+    });
+
+    test('when parsing a sequential trim path, it should retain the multiple-shape mode', () {
+      final decoded =
+          jsonDecode(File('example/assets/lotties/trim_path.json').readAsStringSync()) as Map<String, dynamic>;
+      final layers = decoded['layers'] as List<dynamic>;
+      final layer = layers.single as Map<String, dynamic>;
+      final groups = layer['shapes'] as List<dynamic>;
+      final group = groups.single as Map<String, dynamic>;
+      final items = group['it'] as List<dynamic>;
+      (items[2] as Map<String, dynamic>)['m'] = 2;
+
+      final trim = LottieParser.parse(
+        jsonEncode(decoded),
+      ).animation.layers.single.shapeGroups.single.items.whereType<LottieTrimPath>().single;
+
+      expect(trim.mode, LottieTrimPathMode.sequential);
+    });
+
+    test('when a shape group has multiple trim paths, it should reject the ambiguous modifiers', () {
+      final decoded =
+          jsonDecode(File('example/assets/lotties/trim_path.json').readAsStringSync()) as Map<String, dynamic>;
+      final layers = decoded['layers'] as List<dynamic>;
+      final layer = layers.single as Map<String, dynamic>;
+      final groups = layer['shapes'] as List<dynamic>;
+      final group = groups.single as Map<String, dynamic>;
+      final items = group['it'] as List<dynamic>;
+      items.insert(3, Map<String, dynamic>.from(items[2] as Map<String, dynamic>));
+
+      expect(
+        () => LottieParser.parse(jsonEncode(decoded)),
+        throwsA(
+          isA<DotdartUnsupportedFeatureException>().having(
+            (error) => error.message,
+            'message',
+            contains('more than one trim-path modifier'),
+          ),
+        ),
+      );
+    });
+
+    test('when a trim path modifies reversed geometry, it should reject the unsupported direction', () {
+      final decoded =
+          jsonDecode(File('example/assets/lotties/trim_path.json').readAsStringSync()) as Map<String, dynamic>;
+      final layers = decoded['layers'] as List<dynamic>;
+      final layer = layers.single as Map<String, dynamic>;
+      final groups = layer['shapes'] as List<dynamic>;
+      final group = groups.single as Map<String, dynamic>;
+      final items = group['it'] as List<dynamic>;
+      (items.first as Map<String, dynamic>)['d'] = 3;
+
+      expect(
+        () => LottieParser.parse(jsonEncode(decoded)),
+        throwsA(
+          isA<DotdartUnsupportedFeatureException>().having(
+            (error) => error.message,
+            'message',
+            contains('reversed shape direction'),
+          ),
+        ),
+      );
+    });
+
     test('when parsing an ellipse shape, it should parse position, size, and direction', () {
       final json = jsonEncode({
         'v': '5.5.2',

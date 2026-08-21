@@ -1,3 +1,6 @@
+import 'lottie_animated_scalar.dart';
+import 'lottie_shape_enums.dart';
+
 /// A shape item inside a Lottie shape group.
 ///
 /// Each variant maps to a Lottie shape type (`ty`):
@@ -6,6 +9,7 @@
 /// - `el` → [LottieEllipse]
 /// - `fl` → [LottieFill]
 /// - `st` → [LottieStroke]
+/// - `tm` → [LottieTrimPath]
 /// - `tr` → [LottieGroupTransform]
 /// - `gr` → [LottieGroup]
 sealed class LottieShape {
@@ -14,7 +18,13 @@ sealed class LottieShape {
 
 /// A bezier path shape (`ty: "sh"`).
 class LottiePath extends LottieShape {
-  const LottiePath({required this.vertices, required this.inTangents, required this.outTangents, required this.closed});
+  const LottiePath({
+    required this.vertices,
+    required this.inTangents,
+    required this.outTangents,
+    required this.closed,
+    this.direction = 1,
+  });
 
   /// Vertex positions, each as `[x, y]`.
   final List<List<double>> vertices;
@@ -27,6 +37,9 @@ class LottiePath extends LottieShape {
 
   /// Whether the path is closed (`c: true`).
   final bool closed;
+
+  /// Drawing direction: 1 = normal, 3 = reversed.
+  final int direction;
 }
 
 /// A rounded rectangle shape (`ty: "rc"`).
@@ -151,6 +164,23 @@ class LottieStroke extends LottieShape {
 
   /// Line join: 1 = miter, 2 = round, 3 = bevel.
   final int lineJoin;
+}
+
+/// A trim-path modifier (`ty: "tm"`).
+class LottieTrimPath extends LottieShape {
+  const LottieTrimPath({required this.start, required this.end, required this.offset, required this.mode});
+
+  /// Visible segment start as a percentage from 0 to 100.
+  final LottieAnimatedScalar start;
+
+  /// Visible segment end as a percentage from 0 to 100.
+  final LottieAnimatedScalar end;
+
+  /// Cyclic path offset in degrees, where 360 is one complete path length.
+  final LottieAnimatedScalar offset;
+
+  /// How this modifier treats multiple shapes in its group.
+  final LottieTrimPathMode mode;
 }
 
 /// A group transform (`ty: "tr"`) inside a shape group.

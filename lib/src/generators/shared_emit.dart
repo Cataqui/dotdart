@@ -1,5 +1,3 @@
-import '../parsers/raster/thumbhash.dart';
-
 /// Emits shared, file-level Dart source that is deduplicated across all
 /// widget and painter classes inside a single namespace file.
 ///
@@ -116,15 +114,23 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
   double? get lottieWidgetWidth;
   double? get lottieWidgetHeight;
   double? get lottieProgress;
+  Duration get lottieDelay;
+  Duration? get lottieDuration;
+  LottiePlayback get lottiePlayback;
   bool get lottieRespectDisableAnimations;
   bool get lottieMaintainAspectRatio;
-  Duration get lottieLoopDuration;
+  Duration get lottieNativeDuration;
   double get lottieCanvasWidth;
   double get lottieCanvasHeight;
 
   Widget buildPainter({required double width, required double height});
 
   late final AnimationController _controller;
+  Timer? _delayTimer;
+  Duration? _scheduledDelay;
+  Duration? _activeDuration;
+  LottiePlayback? _activePlayback;
+  bool _hasCompletedInitialDelay = false;
   bool _canAnimateForLifecycle = true;
 
   bool _shouldAnimate() {
@@ -133,12 +139,65 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
     return lottieProgress == null && _canAnimateForLifecycle && !disableAnimations;
   }
 
-  void _syncController() {
-    if (_shouldAnimate()) {
-      if (!_controller.isAnimating) unawaited(_controller.repeat());
+  void _validateTiming() {
+    if (lottieDelay.isNegative) {
+      throw ArgumentError.value(lottieDelay, 'delay', 'must not be negative');
+    }
+    if (lottieDuration != null && lottieDuration! <= Duration.zero) {
+      throw ArgumentError.value(lottieDuration, 'duration', 'must be greater than zero');
+    }
+  }
+
+  void _startPlayback() {
+    final duration = lottieDuration ?? lottieNativeDuration;
+    if (_controller.isAnimating &&
+        _activeDuration == duration &&
+        _activePlayback == lottiePlayback) {
       return;
     }
     _controller.stop();
+    _controller.duration = duration;
+    _activeDuration = duration;
+    _activePlayback = lottiePlayback;
+    switch (lottiePlayback) {
+      case LottiePlayback.once:
+        unawaited(_controller.forward());
+      case LottiePlayback.loop:
+        unawaited(_controller.repeat());
+    }
+  }
+
+  void _syncController() {
+    _validateTiming();
+    if (!_shouldAnimate()) {
+      _delayTimer?.cancel();
+      _delayTimer = null;
+      _scheduledDelay = null;
+      _controller.stop();
+      return;
+    }
+
+    if (_hasCompletedInitialDelay || lottieDelay == Duration.zero) {
+      _hasCompletedInitialDelay = true;
+      _delayTimer?.cancel();
+      _delayTimer = null;
+      _scheduledDelay = null;
+      _startPlayback();
+      return;
+    }
+
+    if ((_delayTimer?.isActive ?? false) && _scheduledDelay == lottieDelay) {
+      return;
+    }
+    _delayTimer?.cancel();
+    _scheduledDelay = lottieDelay;
+    _delayTimer = Timer(lottieDelay, () {
+      _delayTimer = null;
+      _scheduledDelay = null;
+      if (!_shouldAnimate()) return;
+      _hasCompletedInitialDelay = true;
+      _startPlayback();
+    });
   }
 
   Size _defaultSizeFor(BoxConstraints constraints) {
@@ -158,7 +217,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: lottieLoopDuration,
+      duration: lottieNativeDuration,
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -178,6 +237,7 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _delayTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -233,36 +293,40 @@ mixin _DotdartLottieAnimationState<T extends StatefulWidget> on State<T>, Single
 ''';
   }
 
-  /// The shared thumbhash decoder, painter, and image frame builder.
+  /// The shared thumbhash painter and image frame builder.
   ///
   /// Emitted once per namespace file when any image or GIF is present.
   static String thumbhashCode() {
     return '''
-${ThumbhashDecoderSource.source()}
 /// Paints a thumbhash placeholder on a [CustomPainter] canvas.
 class _DotdartThumbhashPainter extends CustomPainter {
-  _DotdartThumbhashPainter(this.hash, this.dominantColor);
+  _DotdartThumbhashPainter(
+    this.thumbWidth,
+    this.thumbHeight,
+    this.pixels,
+    this.dominantColor,
+  );
 
-  final String hash;
+  final int thumbWidth;
+  final int thumbHeight;
+  final List<Color> pixels;
   final Color dominantColor;
+  final Paint _paint = Paint();
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = dominantColor);
-    if (hash.isEmpty) return;
+    canvas.drawRect(Offset.zero & size, _paint..color = dominantColor);
+    if (thumbWidth <= 0 || thumbHeight <= 0 || pixels.length < thumbWidth * thumbHeight) {
+      return;
+    }
 
-    final decoded = _DotdartThumbhashDecoder.decode(hash);
-    final thumbW = decoded.width;
-    final thumbH = decoded.height;
-    final pixels = decoded.pixels;
-    final pixelW = size.width / thumbW;
-    final pixelH = size.height / thumbH;
+    final pixelW = size.width / thumbWidth;
+    final pixelH = size.height / thumbHeight;
 
-    for (var y = 0; y < thumbH; y++) {
-      for (var x = 0; x < thumbW; x++) {
-        final pi = (y * thumbW + x) * 4;
-        final a = pixels[pi + 3];
-        if (a == 0) continue;
+    for (var y = 0; y < thumbHeight; y++) {
+      for (var x = 0; x < thumbWidth; x++) {
+        final color = pixels[y * thumbWidth + x];
+        if (color.a == 0) continue;
         canvas.drawRect(
           Rect.fromLTWH(
             (x * pixelW).floorToDouble(),
@@ -270,8 +334,7 @@ class _DotdartThumbhashPainter extends CustomPainter {
             pixelW.ceilToDouble(),
             pixelH.ceilToDouble(),
           ),
-          Paint()
-            ..color = Color.fromARGB(a, pixels[pi], pixels[pi + 1], pixels[pi + 2]),
+          _paint..color = color,
         );
       }
     }
@@ -279,17 +342,32 @@ class _DotdartThumbhashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotdartThumbhashPainter oldDelegate) {
-    return oldDelegate.hash != hash || oldDelegate.dominantColor != dominantColor;
+    return oldDelegate.thumbWidth != thumbWidth ||
+        oldDelegate.thumbHeight != thumbHeight ||
+        oldDelegate.pixels != pixels ||
+        oldDelegate.dominantColor != dominantColor;
   }
 }
 
 /// Returns a frame builder for [Image] that shows a thumbhash placeholder
 /// until the image decodes, then swaps to the real image.
-ImageFrameBuilder _dotdartImageFrameBuilder(String hash, Color color) {
+ImageFrameBuilder _dotdartImageFrameBuilder(
+  int thumbWidth,
+  int thumbHeight,
+  List<Color> pixels,
+  Color color,
+) {
   return (context, child, frame, sync) {
     if (sync) return child;
     if (frame != null) return child;
-    return CustomPaint(painter: _DotdartThumbhashPainter(hash, color));
+    return CustomPaint(
+      painter: _DotdartThumbhashPainter(
+        thumbWidth,
+        thumbHeight,
+        pixels,
+        color,
+      ),
+    );
   };
 }
 ''';

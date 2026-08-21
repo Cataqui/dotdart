@@ -6,6 +6,7 @@ import 'package:dotdart/src/models/lottie_composition.dart';
 import 'package:dotdart/src/models/lottie_keyframe.dart';
 import 'package:dotdart/src/models/lottie_layer.dart';
 import 'package:dotdart/src/models/lottie_shape.dart';
+import 'package:dotdart/src/models/lottie_shape_enums.dart';
 import 'package:dotdart/src/models/lottie_text.dart';
 import 'package:dotdart/src/parsers/lottie_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,6 +57,69 @@ void main() {
   );
 
   group('LottieGenerator', () {
+    test('when generating an animated trim path, it should extract the visible path segment', () {
+      final source = File('example/assets/lotties/trim_path.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/trim_path.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('double _keyframes0Trim0End(double frame)'),
+          contains('final trimmedPath0_0 = _trimPath('),
+          contains('_trimSourcePath0_0, _trimMetrics0_0, 0, 0, _keyframes0Trim0End(frame), 0'),
+          contains('sequential: false'),
+          contains('metric.extractPath'),
+        ),
+      );
+    });
+
+    test('when trimming multiple geometric shapes sequentially, it should emit one continuous source path', () {
+      const trimAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 30,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Sequential trim',
+        layers: [
+          LottieLayer(
+            name: 'Shapes',
+            shapeGroups: [
+              LottieGroup(
+                name: 'Trimmed shapes',
+                items: [
+                  LottieRect(positionX: 25, positionY: 50, width: 20, height: 20, cornerRadius: 2),
+                  LottieEllipse(positionX: 75, positionY: 50, width: 20, height: 20),
+                  LottieStroke(colorR: 1, colorG: 0, colorB: 0, colorA: 1, opacity: 100, width: 2),
+                  LottieTrimPath(
+                    start: LottieAnimatedScalar(animated: false, staticValue: 10),
+                    end: LottieAnimatedScalar(animated: false, staticValue: 60),
+                    offset: LottieAnimatedScalar(animated: false, staticValue: 90),
+                    mode: LottieTrimPathMode.sequential,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(trimAnimation, 'assets/lotties/sequential.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('static final Path _trimSourcePath0_0 = Path()'),
+          contains('..addRRect('),
+          contains('..addOval('),
+          contains('static final double _trimTotalLength0_0 = _trimMetrics0_0.fold<double>('),
+          contains('_trimSourcePath0_0, _trimMetrics0_0, _trimTotalLength0_0, 10, 60, 90, sequential: true'),
+        ),
+      );
+    });
+
     test('when text and color layers are unnamed, it should expose generic parameters in source order', () {
       const unnamedAnimation = LottieAnimation(
         width: 100,
@@ -368,6 +432,22 @@ void main() {
       );
     });
 
+    test('when animated text opacity changes, it should reuse its laid-out text painter', () {
+      final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
+      final animation = LottieParser.parse(source).animation;
+
+      final code = LottieGenerator(animation, 'assets/lotties/job_cards.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('cached.text = _textSpanFor'),
+          contains('if (cached != null) {'),
+          isNot(contains('cached?.dispose();')),
+        ),
+      );
+    });
+
     test('when a layer has a parent controller, it should apply the parent transform before the layer transform', () {
       final source = File('example/assets/lotties/cataqui_job_cards_carousel.json').readAsStringSync();
       final animation = LottieParser.parse(source).animation;
@@ -451,13 +531,17 @@ void main() {
       );
     });
 
-    test('when a layer spans the animation, it should share the single animation bounds guard', () {
+    test('when progress reaches one, it should clamp to the final visible frame', () {
       final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
       final drawMethod = code.substring(code.indexOf('void _drawLayer10'));
 
       expect(
-        (code.contains('if (frame >= 60) return;'), drawMethod.contains('if (frame < 0 || frame >= 60) return;')),
-        (true, false),
+        (
+          code.contains('final frame = math.min(59.999999, progress * _Test._totalFrames);'),
+          code.contains('if (frame >= 60) return;'),
+          drawMethod.contains('if (frame < 0 || frame >= 60) return;'),
+        ),
+        (true, false, false),
       );
     });
 
@@ -474,7 +558,7 @@ void main() {
 
       final code = LottieGenerator(offsetAnimation, 'assets/lottie/offset.json').generateWidgetClass();
 
-      expect(code, contains('final frame = 10 + progress * _Offset._totalFrames;'));
+      expect(code, contains('final frame = math.min(39.999999, 10 + progress * _Offset._totalFrames);'));
     });
 
     test('when a precomposition shifts child time, it should retain the child visibility guard', () {
@@ -539,7 +623,7 @@ void main() {
           contains('_DotdartLottieAnimationState<_Test>'),
           contains('double? get lottieWidgetWidth => widget.width;'),
           contains('double get lottieCanvasWidth => _Test._lottieWidth;'),
-          contains('Duration get lottieLoopDuration => _Test._loopDuration;'),
+          contains('Duration get lottieNativeDuration => _Test._nativeDuration;'),
         ),
       );
     });
@@ -559,7 +643,7 @@ void main() {
       );
     });
 
-    test('when generating code, it should include the loop duration', () {
+    test('when generating code, it should include the native playback duration', () {
       final generator = LottieGenerator(animation, 'assets/lottie/test.json');
       final code = generator.generateWidgetClass();
 
@@ -571,6 +655,35 @@ void main() {
       final code = generator.generateWidgetClass();
 
       expect(code, allOf(contains('final double? progress;'), contains('final bool respectDisableAnimations;')));
+    });
+
+    test('when generating timing controls, it should expose delay and duration to the lifecycle mixin', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf([
+          contains('final Duration delay;'),
+          contains('final Duration? duration;'),
+          contains('this.delay = Duration.zero'),
+          contains('this.duration'),
+          contains('Duration get lottieDelay => widget.delay;'),
+          contains('Duration? get lottieDuration => widget.duration;'),
+        ]),
+      );
+    });
+
+    test('when generating playback controls, it should default to one-time playback', () {
+      final code = LottieGenerator(animation, 'assets/lottie/test.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('final LottiePlayback playback;'),
+          contains('this.playback = LottiePlayback.once'),
+          contains('LottiePlayback get lottiePlayback => widget.playback;'),
+        ),
+      );
     });
 
     test('when generating code, it should replace the animated property with nullable progress', () {
@@ -819,6 +932,27 @@ void main() {
       final params = generator.params;
 
       expect(params.any((p) => p.name == 'progress' && p.type == 'double?'), isTrue);
+    });
+
+    test('when getting params, it should include delay and duration timing controls', () {
+      final params = LottieGenerator(animation, 'assets/lottie/test.json').params;
+      final delay = params.firstWhere((candidate) => candidate.name == 'delay');
+      final duration = params.firstWhere((candidate) => candidate.name == 'duration');
+
+      expect(
+        (delay.type, delay.defaultValue, duration.type, duration.defaultValue),
+        ('Duration', 'Duration.zero', 'Duration?', null),
+      );
+    });
+
+    test('when getting params, it should include playback with a one-time default', () {
+      final params = LottieGenerator(animation, 'assets/lottie/test.json').params;
+      final playback = params.firstWhere((candidate) => candidate.name == 'playback');
+
+      expect(
+        (playback.type, playback.defaultValue),
+        ('LottiePlayback', 'LottiePlayback.once'),
+      );
     });
 
     test('when getting params, it should include respectDisableAnimations with default true', () {
@@ -1339,6 +1473,43 @@ void main() {
       final code = generator.generateWidgetClass();
 
       expect(code, contains('if (frame < 30) {\n      return 0;\n    }'));
+    });
+
+    test('when adjacent keyframe segments hold the same value, it should compile them into one interval', () {
+      const compactedAnimation = LottieAnimation(
+        width: 100,
+        height: 100,
+        frameRate: 60,
+        inPoint: 0,
+        outPoint: 30,
+        name: 'Compacted holds',
+        layers: [
+          LottieLayer(
+            name: 'Layer',
+            shapeGroups: [],
+            opacity: LottieAnimatedScalar(
+              animated: true,
+              keyframes: [
+                LottieScalarKeyframe(time: 0, start: 0, hold: true),
+                LottieScalarKeyframe(time: 10, start: 0, hold: true),
+                LottieScalarKeyframe(time: 20, start: 0, hold: true),
+                LottieScalarKeyframe(time: 30, start: 100),
+              ],
+            ),
+          ),
+        ],
+      );
+
+      final code = LottieGenerator(compactedAnimation, 'assets/lottie/compacted.json').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('if (frame < 30) {'),
+          isNot(contains('if (frame < 10) {')),
+          isNot(contains('if (frame < 20) {')),
+        ),
+      );
     });
   });
 

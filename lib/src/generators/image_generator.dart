@@ -3,6 +3,7 @@
 // ignore_for_file: cascade_invocations
 
 import '../models/raster_image.dart';
+import '../parsers/raster/thumbhash.dart';
 import 'accessor_param.dart';
 import 'naming.dart';
 
@@ -52,6 +53,18 @@ class ImageGenerator {
     final formatName = _formatName();
     final hexColor = _dominantColorHex();
     final assetPath = sourcePath;
+    final decodedThumbhash = model.thumbhash.isEmpty
+        ? (width: 0, height: 0, pixels: <int>[])
+        : ThumbhashDecoder.decode(model.thumbhash);
+    final thumbhashColors = <int>[];
+    for (var index = 0; index < decodedThumbhash.pixels.length; index += 4) {
+      thumbhashColors.add(
+        decodedThumbhash.pixels[index + 3] << 24 |
+            decodedThumbhash.pixels[index] << 16 |
+            decodedThumbhash.pixels[index + 1] << 8 |
+            decodedThumbhash.pixels[index + 2],
+      );
+    }
 
     b.writeln('/// A dotdart-generated image widget from `$assetPath`.');
     b.writeln('///');
@@ -59,7 +72,7 @@ class ImageGenerator {
       '/// Intrinsic ${model.intrinsicWidth}×${model.intrinsicHeight} · $formatName · aspect ${model.aspectRatio.toStringAsFixed(4)}.',
     );
     b.writeln('/// Decodes at display size × device pixel ratio for minimal memory.');
-    b.writeln('/// Renders a thumbhash placeholder in frame 1, then crossfades to the image.');
+    b.writeln('/// Renders a thumbhash placeholder in frame 1, then swaps to the image.');
     b.writeln('class $name extends StatelessWidget {');
     b.writeln('  const $name({');
     for (final param in params) {
@@ -76,7 +89,19 @@ class ImageGenerator {
 
     b.writeln('  static const double _aspectRatio = ${_fmt(model.aspectRatio)};');
     b.writeln('  static const Color _dominantColor = Color($hexColor);');
-    b.writeln("  static const String _thumbhash = '${model.thumbhash}';");
+    b.writeln('  static const int _thumbhashWidth = ${decodedThumbhash.width};');
+    b.writeln('  static const int _thumbhashHeight = ${decodedThumbhash.height};');
+    b.writeln('  static const List<Color> _thumbhashPixels = <Color>[');
+    for (final color in thumbhashColors) {
+      b.writeln('    Color(${_colorHex(color)}),');
+    }
+    b.writeln('  ];');
+    b.writeln('  static final _frameBuilder = _dotdartImageFrameBuilder(');
+    b.writeln('    _thumbhashWidth,');
+    b.writeln('    _thumbhashHeight,');
+    b.writeln('    _thumbhashPixels,');
+    b.writeln('    _dominantColor,');
+    b.writeln('  );');
     b.writeln("  static const String _assetPath = '$assetPath';");
     b.writeln();
 
@@ -100,7 +125,7 @@ class ImageGenerator {
     b.writeln('      filterQuality: FilterQuality.low,');
     b.writeln('      cacheWidth: (w * dpr).ceil(),');
     b.writeln('      cacheHeight: (h * dpr).ceil(),');
-    b.writeln('      frameBuilder: _dotdartImageFrameBuilder(_thumbhash, _dominantColor),');
+    b.writeln('      frameBuilder: _frameBuilder,');
     b.writeln('    );');
     b.writeln();
     b.writeln('    return RepaintBoundary(child: image);');
@@ -119,10 +144,14 @@ class ImageGenerator {
   }
 
   String _dominantColorHex() {
-    final a = (model.dominantColor >> 24) & 0xFF;
-    final r = (model.dominantColor >> 16) & 0xFF;
-    final g = (model.dominantColor >> 8) & 0xFF;
-    final b = model.dominantColor & 0xFF;
+    return _colorHex(model.dominantColor);
+  }
+
+  String _colorHex(int color) {
+    final a = (color >> 24) & 0xFF;
+    final r = (color >> 16) & 0xFF;
+    final g = (color >> 8) & 0xFF;
+    final b = color & 0xFF;
     return '0x${a.toRadixString(16).padLeft(2, '0').toUpperCase()}'
         '${r.toRadixString(16).padLeft(2, '0').toUpperCase()}'
         '${g.toRadixString(16).padLeft(2, '0').toUpperCase()}'

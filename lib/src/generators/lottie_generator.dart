@@ -4,8 +4,10 @@
 // ignore_for_file: cascade_invocations, prefer_adjacent_string_concatenation
 
 import '../models/lottie_animation.dart';
+import '../models/lottie_keyframe.dart';
 import '../models/lottie_layer.dart';
 import '../models/lottie_shape.dart';
+import '../models/lottie_shape_enums.dart';
 
 import 'accessor_param.dart';
 import 'naming.dart';
@@ -47,6 +49,23 @@ class LottieGenerator {
       ),
       const AccessorParam(name: 'progress', type: 'double?', documentation: 'Fixed animation progress from 0 to 1.'),
       const AccessorParam(
+        name: 'delay',
+        type: 'Duration',
+        defaultValue: 'Duration.zero',
+        documentation: 'Non-negative time to wait once before automatic playback starts.',
+      ),
+      const AccessorParam(
+        name: 'duration',
+        type: 'Duration?',
+        documentation: 'Positive total playback time. When null, uses the duration from the Lottie file.',
+      ),
+      const AccessorParam(
+        name: 'playback',
+        type: 'LottiePlayback',
+        defaultValue: 'LottiePlayback.once',
+        documentation: 'Whether automatic playback runs once or loops continuously.',
+      ),
+      const AccessorParam(
         name: 'respectDisableAnimations',
         type: 'bool',
         defaultValue: 'true',
@@ -82,6 +101,9 @@ class LottieGenerator {
 
   /// Widget class name derived from the source file.
   String get widgetClassName => '_${Naming.widgetClassName(sourcePath)}';
+
+  /// Whether the generated painter uses Flutter path metrics.
+  bool get requiresPathMetrics => _usesShape<LottieTrimPath>();
 
   /// The PascalCase name without the private `_` prefix — used for inner classes.
   String get _baseName => Naming.widgetClassName(sourcePath);
@@ -141,6 +163,9 @@ class LottieGenerator {
       'maintainAspectRatio',
       'clip',
       'progress',
+      'delay',
+      'duration',
+      'playback',
       'respectDisableAnimations',
       'overrides',
     };
@@ -253,7 +278,17 @@ class LottieGenerator {
 
     for (final entry in _layers) {
       final layer = entry.layer;
-      final properties = [layer.opacity, layer.rotation, layer.positionX, layer.positionY, layer.scaleX, layer.scaleY];
+      final properties = <LottieAnimatedScalar?>[
+        layer.opacity,
+        layer.rotation,
+        layer.positionX,
+        layer.positionY,
+        layer.scaleX,
+        layer.scaleY,
+        for (final group in layer.shapeGroups)
+          for (final item in group.items)
+            if (item case final LottieTrimPath trim) ...[trim.start, trim.end, trim.offset],
+      ];
       for (final property in properties) {
         if (property == null || !_hasAnimatedValue(property)) continue;
         for (var index = 0; index < property.keyframes.length - 1; index++) {
@@ -330,7 +365,7 @@ class LottieGenerator {
     final className = widgetClassName;
     b.writeln('/// A dotdart-generated animated widget from `${_dartDocText(sourcePath)}`.');
     b.writeln('///');
-    b.writeln('/// Renders a ${animation.durationMs}ms looping animation');
+    b.writeln('/// Renders a ${animation.durationMs}ms animation');
     b.writeln('/// (${animation.totalFrames} frames at ${animation.frameRate}Hz)');
     b.writeln('/// on a ${animation.width}×${animation.height} canvas.');
     b.writeln('/// No Lottie runtime dependency — the animation is drawn');
@@ -347,7 +382,7 @@ class LottieGenerator {
     b.writeln('  static const double _lottieWidth = ${animation.width};');
     b.writeln('  static const double _lottieHeight = ${animation.height};');
     b.writeln('  static const int _totalFrames = ${animation.totalFrames};');
-    b.writeln('  static const Duration _loopDuration = Duration(milliseconds: ${animation.durationMs});');
+    b.writeln('  static const Duration _nativeDuration = Duration(milliseconds: ${animation.durationMs});');
     b.writeln();
     for (final param in widgetParams) {
       final fieldDeclaration = param.fieldDeclaration;
@@ -389,10 +424,19 @@ class LottieGenerator {
     b.writeln('  double? get lottieProgress => widget.progress;');
     b.writeln();
     b.writeln('  @override');
+    b.writeln('  Duration get lottieDelay => widget.delay;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  Duration? get lottieDuration => widget.duration;');
+    b.writeln();
+    b.writeln('  @override');
+    b.writeln('  LottiePlayback get lottiePlayback => widget.playback;');
+    b.writeln();
+    b.writeln('  @override');
     b.writeln('  bool get lottieRespectDisableAnimations => widget.respectDisableAnimations;');
     b.writeln();
     b.writeln('  @override');
-    b.writeln('  Duration get lottieLoopDuration => $className._loopDuration;');
+    b.writeln('  Duration get lottieNativeDuration => $className._nativeDuration;');
     b.writeln();
     b.writeln('  @override');
     b.writeln('  double get lottieCanvasWidth => $className._lottieWidth;');
@@ -502,6 +546,9 @@ class LottieGenerator {
 
     // ── Keyframe evaluation helpers ──
     _writeEvalHelpers(b, curves);
+    if (_usesShape<LottieTrimPath>()) {
+      _writeTrimPathHelpers(b);
+    }
 
     // ── Paint method ──
     b.writeln('  @override');
@@ -510,8 +557,8 @@ class LottieGenerator {
     final frameExpression = animation.inPoint == 0
         ? 'progress * $className._totalFrames'
         : '${animation.inPoint} + progress * $className._totalFrames';
-    b.writeln('    final frame = $frameExpression;');
-    b.writeln('    if (frame >= ${animation.outPoint}) return;');
+    final lastVisibleFrame = (animation.outPoint - 0.000001).toString();
+    b.writeln('    final frame = math.min($lastVisibleFrame, $frameExpression);');
     b.writeln();
     b.writeln('    canvas.save();');
     b.writeln('    if (clip) canvas.clipRect(_canvasRect);');
@@ -579,13 +626,21 @@ class LottieGenerator {
       _writeScalarKeyframes(b, '${prefix}PositionY', layer.positionY, curves);
       _writeScalarKeyframes(b, '${prefix}ScaleX', layer.scaleX, curves);
       _writeScalarKeyframes(b, '${prefix}ScaleY', layer.scaleY, curves);
+      for (var groupIndex = 0; groupIndex < layer.shapeGroups.length; groupIndex++) {
+        final trim = _groupParts(layer.shapeGroups[groupIndex]).trim;
+        if (trim == null) continue;
+        final trimPrefix = '_keyframes${i}Trim$groupIndex';
+        _writeScalarKeyframes(b, '${trimPrefix}Start', trim.start, curves);
+        _writeScalarKeyframes(b, '${trimPrefix}End', trim.end, curves);
+        _writeScalarKeyframes(b, '${trimPrefix}Offset', trim.offset, curves);
+      }
     }
   }
 
   void _writeScalarKeyframes(StringBuffer b, String name, LottieAnimatedScalar? anim, List<_CurveEntry> curves) {
     if (anim == null || !_hasAnimatedValue(anim)) return;
 
-    final keyframes = anim.keyframes;
+    final keyframes = _compactScalarKeyframes(anim.keyframes);
     b.writeln('  double $name(double frame) {');
     if (keyframes.length == 1) {
       b.writeln('    return ${_fmt(keyframes.single.start)};');
@@ -635,6 +690,25 @@ class LottieGenerator {
     b.writeln();
   }
 
+  List<LottieScalarKeyframe> _compactScalarKeyframes(List<LottieScalarKeyframe> keyframes) {
+    if (keyframes.length < 3) return keyframes;
+
+    final compacted = <LottieScalarKeyframe>[keyframes.first];
+    for (var index = 1; index < keyframes.length - 1; index++) {
+      final previous = compacted.last;
+      final current = keyframes[index];
+      final next = keyframes[index + 1];
+      final previousEnd = previous.end ?? current.start;
+      final currentEnd = current.end ?? next.start;
+      final previousIsConstant = previous.hold || previousEnd == previous.start;
+      final currentIsConstant = current.hold || currentEnd == current.start;
+      if (previousIsConstant && currentIsConstant && previous.start == current.start) continue;
+      compacted.add(current);
+    }
+    compacted.add(keyframes.last);
+    return compacted;
+  }
+
   // ── Path data emission ──
 
   void _writeGeometryData(StringBuffer b) {
@@ -677,7 +751,10 @@ class LottieGenerator {
           if (item is LottiePath) {
             _writeSinglePath(b, layerIdx, groupIdx, shapeIndex, item);
           }
-          if (item is! LottieFill && item is! LottieStroke && item is! LottieGroupTransform) {
+          if (item is! LottieFill &&
+              item is! LottieStroke &&
+              item is! LottieTrimPath &&
+              item is! LottieGroupTransform) {
             shapeIndex++;
           }
         }
@@ -717,30 +794,39 @@ class LottieGenerator {
         b.writeln('  Offset _textPainter${entry.index}Offset = Offset.zero;');
       }
       b.writeln();
-      b.writeln('  TextPainter _textPainterFor${entry.index}(Color color) {');
-      b.writeln('    final cached = _textPainter${entry.index};');
-      b.writeln('    if (cached != null && _textPainter${entry.index}Color == color) return cached;');
-      b.writeln('    cached?.dispose();');
-      b.writeln('    _textPainter${entry.index}Color = color;');
-      b.writeln('    final painter = TextPainter(');
-      b.writeln('      text: TextSpan(');
-      b.writeln('        text: overrides.${textParam.name} ?? ${_dartString(text.value)},');
-      b.writeln('        style: TextStyle(');
-      b.writeln('          color: color,');
-      b.writeln('          fontFamily: ${_dartString(text.fontFamily)},');
-      b.writeln('          fontSize: ${_fmt(text.fontSize)},');
-      b.writeln('          fontWeight: FontWeight.w${text.fontWeight},');
+      b.writeln('  TextSpan _textSpanFor${entry.index}(Color color) {');
+      b.writeln('    return TextSpan(');
+      b.writeln('      text: overrides.${textParam.name} ?? ${_dartString(text.value)},');
+      b.writeln('      style: TextStyle(');
+      b.writeln('        color: color,');
+      b.writeln('        fontFamily: ${_dartString(text.fontFamily)},');
+      b.writeln('        fontSize: ${_fmt(text.fontSize)},');
+      b.writeln('        fontWeight: FontWeight.w${text.fontWeight},');
       if (text.italic) {
-        b.writeln('          fontStyle: FontStyle.italic,');
+        b.writeln('        fontStyle: FontStyle.italic,');
       }
       if (text.lineHeight != text.fontSize) {
-        b.writeln('          height: ${_fmt(text.lineHeight / text.fontSize)},');
+        b.writeln('        height: ${_fmt(text.lineHeight / text.fontSize)},');
       }
       if (text.tracking != 0) {
-        b.writeln('          letterSpacing: ${_fmt(text.tracking / 1000 * text.fontSize)},');
+        b.writeln('        letterSpacing: ${_fmt(text.tracking / 1000 * text.fontSize)},');
       }
-      b.writeln('        ),');
       b.writeln('      ),');
+      b.writeln('    );');
+      b.writeln('  }');
+      b.writeln();
+      b.writeln('  TextPainter _textPainterFor${entry.index}(Color color) {');
+      b.writeln('    final cached = _textPainter${entry.index};');
+      b.writeln('    if (cached != null) {');
+      b.writeln('      if (_textPainter${entry.index}Color != color) {');
+      b.writeln('        _textPainter${entry.index}Color = color;');
+      b.writeln('        cached.text = _textSpanFor${entry.index}(color);');
+      b.writeln('      }');
+      b.writeln('      return cached;');
+      b.writeln('    }');
+      b.writeln('    _textPainter${entry.index}Color = color;');
+      b.writeln('    final painter = TextPainter(');
+      b.writeln('      text: _textSpanFor${entry.index}(color),');
       b.writeln('      textDirection: TextDirection.ltr,');
       b.writeln('      textAlign: ${_textAlign(text.justification)},');
       if (maxLines != null) b.writeln('      maxLines: $maxLines,');
@@ -816,6 +902,28 @@ class LottieGenerator {
         final parts = _groupParts(layer.shapeGroups[groupIndex]);
         final compoundFill = _canUseCompoundFill(fill: parts.fill, shapes: parts.shapes);
         final compoundStroke = _canUseCompoundStroke(fill: parts.fill, stroke: parts.stroke, shapes: parts.shapes);
+        if (parts.trim != null) {
+          _writeStaticCompoundPath(
+            b,
+            name: '_trimSourcePath${layerIndex}_$groupIndex',
+            shapes: parts.shapes,
+            layerIndex: layerIndex,
+            groupIndex: groupIndex,
+            evenOdd: parts.fill?.fillRule == 2,
+          );
+          b.writeln(
+            '  static final List<PathMetric> _trimMetrics${layerIndex}_$groupIndex = '
+            '_trimSourcePath${layerIndex}_$groupIndex.computeMetrics().toList(growable: false);',
+          );
+          if (parts.trim!.mode == LottieTrimPathMode.sequential) {
+            b.writeln(
+              '  static final double _trimTotalLength${layerIndex}_$groupIndex = '
+              '_trimMetrics${layerIndex}_$groupIndex.fold<double>(0, (total, metric) => total + metric.length);',
+            );
+          }
+          b.writeln();
+          continue;
+        }
         if (compoundFill) {
           _writeStaticCompoundPath(
             b,
@@ -883,6 +991,71 @@ class LottieGenerator {
       b.writeln('  }');
       b.writeln();
     }
+  }
+
+  void _writeTrimPathHelpers(StringBuffer b) {
+    b.writeln('  Path _trimPath(');
+    b.writeln('    Path source,');
+    b.writeln('    List<PathMetric> metrics,');
+    b.writeln('    double totalLength,');
+    b.writeln('    double start,');
+    b.writeln('    double end,');
+    b.writeln('    double offset, {');
+    b.writeln('    required bool sequential,');
+    b.writeln('  }) {');
+    b.writeln('    final lower = math.min(start, end).clamp(0, 100).toDouble() / 100;');
+    b.writeln('    final upper = math.max(start, end).clamp(0, 100).toDouble() / 100;');
+    b.writeln('    final visibleFraction = upper - lower;');
+    b.writeln('    if (visibleFraction <= 0) return Path();');
+    b.writeln('    if (visibleFraction >= 1) return source;');
+    b.writeln('    final normalizedStart = (lower + offset / 360) % 1;');
+    b.writeln('    final normalizedEnd = normalizedStart + visibleFraction;');
+    b.writeln('    final result = Path()..fillType = source.fillType;');
+    b.writeln('    if (sequential) {');
+    b.writeln('      if (totalLength <= 0) return result;');
+    b.writeln(
+      '      _appendTrimRange(result, metrics, normalizedStart * totalLength, math.min(1, normalizedEnd) * totalLength);',
+    );
+    b.writeln('      if (normalizedEnd > 1) {');
+    b.writeln('        _appendTrimRange(result, metrics, 0, (normalizedEnd - 1) * totalLength);');
+    b.writeln('      }');
+    b.writeln('      return result;');
+    b.writeln('    }');
+    b.writeln('    for (final metric in metrics) {');
+    b.writeln('      result.addPath(');
+    b.writeln(
+      '        metric.extractPath(normalizedStart * metric.length, math.min(1, normalizedEnd) * metric.length),',
+    );
+    b.writeln('        Offset.zero,');
+    b.writeln('      );');
+    b.writeln('      if (normalizedEnd > 1) {');
+    b.writeln('        result.addPath(metric.extractPath(0, (normalizedEnd - 1) * metric.length), Offset.zero);');
+    b.writeln('      }');
+    b.writeln('    }');
+    b.writeln('    return result;');
+    b.writeln('  }');
+    b.writeln();
+    b.writeln('  void _appendTrimRange(');
+    b.writeln('    Path destination,');
+    b.writeln('    List<PathMetric> metrics,');
+    b.writeln('    double start,');
+    b.writeln('    double end,');
+    b.writeln('  ) {');
+    b.writeln('    var metricStart = 0.0;');
+    b.writeln('    for (final metric in metrics) {');
+    b.writeln('      final metricEnd = metricStart + metric.length;');
+    b.writeln('      final overlapStart = math.max(start, metricStart);');
+    b.writeln('      final overlapEnd = math.min(end, metricEnd);');
+    b.writeln('      if (overlapStart < overlapEnd) {');
+    b.writeln('        destination.addPath(');
+    b.writeln('          metric.extractPath(overlapStart - metricStart, overlapEnd - metricStart),');
+    b.writeln('          Offset.zero,');
+    b.writeln('        );');
+    b.writeln('      }');
+    b.writeln('      metricStart = metricEnd;');
+    b.writeln('    }');
+    b.writeln('  }');
+    b.writeln();
   }
 
   // ── Draw method per layer ──
@@ -1094,6 +1267,7 @@ class LottieGenerator {
     final parts = _groupParts(group);
     final fill = parts.fill;
     final stroke = parts.stroke;
+    final trim = parts.trim;
     final transform = parts.transform;
     final shapes = parts.shapes;
 
@@ -1130,6 +1304,22 @@ class LottieGenerator {
     }
 
     final groupOpacity = (transform?.opacity ?? 100) / 100;
+    if (trim != null) {
+      _writeDrawTrimmedGroup(
+        b,
+        layerIndex: layerIndex,
+        groupIndex: groupIndex,
+        fill: fill,
+        stroke: stroke,
+        trim: trim,
+        customizations: customizations,
+        groupOpacity: groupOpacity,
+      );
+      if (hasTransform) {
+        b.writeln('    canvas.restore();');
+      }
+      return;
+    }
     final compoundFill = _canUseCompoundFill(fill: fill, shapes: shapes);
     final compoundStroke = _canUseCompoundStroke(fill: fill, stroke: stroke, shapes: shapes);
     if (compoundFill) {
@@ -1157,11 +1347,19 @@ class LottieGenerator {
     }
   }
 
-  ({LottieFill? fill, LottieStroke? stroke, LottieGroupTransform? transform, List<LottieShape> shapes}) _groupParts(
+  ({
+    LottieFill? fill,
+    LottieStroke? stroke,
+    LottieTrimPath? trim,
+    LottieGroupTransform? transform,
+    List<LottieShape> shapes,
+  })
+  _groupParts(
     LottieGroup group,
   ) {
     LottieFill? fill;
     LottieStroke? stroke;
+    LottieTrimPath? trim;
     LottieGroupTransform? transform;
     final shapes = <LottieShape>[];
 
@@ -1170,6 +1368,8 @@ class LottieGenerator {
         fill = item;
       } else if (item is LottieStroke) {
         stroke = item;
+      } else if (item is LottieTrimPath) {
+        trim = item;
       } else if (item is LottieGroupTransform) {
         transform = item;
       } else {
@@ -1177,7 +1377,7 @@ class LottieGenerator {
       }
     }
 
-    return (fill: fill, stroke: stroke, transform: transform, shapes: shapes);
+    return (fill: fill, stroke: stroke, trim: trim, transform: transform, shapes: shapes);
   }
 
   bool _canUseCompoundStroke({
@@ -1186,6 +1386,65 @@ class LottieGenerator {
     required List<LottieShape> shapes,
   }) {
     return fill == null && stroke != null && shapes.length > 1 && shapes.every((shape) => shape is LottiePath);
+  }
+
+  void _writeDrawTrimmedGroup(
+    StringBuffer b, {
+    required int layerIndex,
+    required int groupIndex,
+    required LottieFill? fill,
+    required LottieStroke? stroke,
+    required LottieTrimPath trim,
+    required _CustomizationPlan customizations,
+    required double groupOpacity,
+  }) {
+    if (fill == null && stroke == null) return;
+
+    final trimPrefix = '_keyframes${layerIndex}Trim$groupIndex';
+    final start = _hasAnimatedValue(trim.start)
+        ? '${trimPrefix}Start(frame)'
+        : _fmt(_staticScalarValue(trim.start, fallback: 0));
+    final end = _hasAnimatedValue(trim.end)
+        ? '${trimPrefix}End(frame)'
+        : _fmt(_staticScalarValue(trim.end, fallback: 100));
+    final offset = _hasAnimatedValue(trim.offset)
+        ? '${trimPrefix}Offset(frame)'
+        : _fmt(_staticScalarValue(trim.offset, fallback: 0));
+    final sequential = switch (trim.mode) {
+      LottieTrimPathMode.parallel => 'false',
+      LottieTrimPathMode.sequential => 'true',
+    };
+    final suffix = '${layerIndex}_$groupIndex';
+    final totalLength = switch (trim.mode) {
+      LottieTrimPathMode.parallel => '0',
+      LottieTrimPathMode.sequential => '_trimTotalLength$suffix',
+    };
+    final pathName = 'trimmedPath$suffix';
+    b.write('    final $pathName = _trimPath(');
+    b.writeln(
+      '_trimSourcePath$suffix, _trimMetrics$suffix, $totalLength, $start, $end, $offset, '
+      'sequential: $sequential);',
+    );
+
+    if (fill != null) {
+      final opacity = _fmt(fill.opacity / 100 * groupOpacity);
+      final colorRef = _colorReference(fill, customizations, 'layerOpacity * $opacity');
+      b
+        ..writeln('    final trimFillPaint$suffix = _fillPaint..color = $colorRef;')
+        ..writeln('    canvas.drawPath($pathName, trimFillPaint$suffix);');
+    }
+    if (stroke != null) {
+      final cap = _lineCap(stroke.lineCap);
+      final join = _lineJoin(stroke.lineJoin);
+      final opacity = _fmt(stroke.opacity / 100 * groupOpacity);
+      final colorRef = _colorReference(stroke, customizations, 'layerOpacity * $opacity');
+      b
+        ..writeln(
+          '    final trimStrokePaint$suffix = _strokePaint..color = $colorRef'
+          '..strokeWidth = ${_fmt(stroke.width)}..strokeCap = $cap..strokeJoin = $join;',
+        )
+        ..writeln('    canvas.drawPath($pathName, trimStrokePaint$suffix);');
+    }
   }
 
   bool _canUseCompoundFill({required LottieFill? fill, required List<LottieShape> shapes}) {

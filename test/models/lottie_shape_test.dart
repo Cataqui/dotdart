@@ -1,4 +1,6 @@
+import 'package:dotdart/src/models/lottie_animated_scalar.dart';
 import 'package:dotdart/src/models/lottie_shape.dart';
+import 'package:dotdart/src/models/lottie_shape_enums.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -20,7 +22,10 @@ void main() {
         closed: true,
       );
 
-      expect((path.vertices.length, path.inTangents.length, path.outTangents.length, path.closed), (2, 2, 2, true));
+      expect(
+        (path.vertices.length, path.inTangents.length, path.outTangents.length, path.closed, path.direction),
+        (2, 2, 2, true, 1),
+      );
     });
 
     test('when creating an open path, it should store closed as false', () {
@@ -124,6 +129,22 @@ void main() {
       const stroke = LottieStroke(colorR: 0, colorG: 0, colorB: 0, colorA: 1, opacity: 100, width: 2);
 
       expect((stroke.lineCap, stroke.lineJoin), (1, 1));
+    });
+  });
+
+  group('LottieTrimPath', () {
+    test('when creating a trim path, it should retain its values and multiple-shape mode', () {
+      const trim = LottieTrimPath(
+        start: LottieAnimatedScalar(animated: false, staticValue: 0),
+        end: LottieAnimatedScalar(animated: false, staticValue: 50),
+        offset: LottieAnimatedScalar(animated: false, staticValue: 90),
+        mode: LottieTrimPathMode.sequential,
+      );
+
+      expect(
+        (trim.start.staticValue, trim.end.staticValue, trim.offset.staticValue, trim.mode),
+        (0, 50, 90, LottieTrimPathMode.sequential),
+      );
     });
   });
 
