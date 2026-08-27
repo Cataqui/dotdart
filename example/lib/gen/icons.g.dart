@@ -88,6 +88,9 @@ mixin _DotdartSvgSizing on StatelessWidget {
 /// ```dart
 /// $Icons.cross(<params>);
 /// ```
+/// ```dart
+/// $Icons.nestedGroups(<params>);
+/// ```
 abstract final class $Icons {
   $Icons._();
 
@@ -104,6 +107,25 @@ abstract final class $Icons {
     height: height,
     maintainAspectRatio: maintainAspectRatio,
     color1: color1,
+  );
+
+  /// Builds the `NestedGroups` widget from `nestedGroups.svg`.
+  static Widget nestedGroups({
+    Key? key,
+    double? width,
+    double? height,
+    bool maintainAspectRatio = true,
+    Color? backgroundColor,
+    Color? outlineColor,
+    Color? innerTextColor,
+  }) => _NestedGroups(
+    key: key,
+    width: width,
+    height: height,
+    maintainAspectRatio: maintainAspectRatio,
+    backgroundColor: backgroundColor,
+    outlineColor: outlineColor,
+    innerTextColor: innerTextColor,
   );
 }
 
@@ -211,5 +233,140 @@ class _CrossPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CrossPainter oldDelegate) {
     return oldDelegate.color1 != color1;
+  }
+}
+
+/// A dotdart-generated SVG widget from `assets/icons/nested_groups.svg`.
+///
+/// Renders a 40.0×40.0 SVG
+/// on a viewBox of 0.0 0.0 40.0 40.0.
+/// No flutter_svg runtime dependency — drawn entirely via [CustomPainter].
+class _NestedGroups extends StatelessWidget with _DotdartSvgSizing {
+  const _NestedGroups({
+    super.key,
+    this.width,
+    this.height,
+    this.maintainAspectRatio = true,
+    this.backgroundColor,
+    this.outlineColor,
+    this.innerTextColor,
+  });
+
+  static const double _svgWidth = 40;
+  static const double _svgHeight = 40;
+  static const double _viewBoxMinX = 0;
+  static const double _viewBoxMinY = 0;
+  static const double _viewBoxWidth = 40;
+  static const double _viewBoxHeight = 40;
+
+  /// Width in logical pixels.
+  final double? width;
+
+  /// Height in logical pixels.
+  final double? height;
+
+  /// When true (default), keeps the native aspect ratio using the larger requested value as the reference. When false, both dimensions are applied as-is and the asset may distort.
+  final bool maintainAspectRatio;
+
+  /// Color from SVG id `background` — defaults to 0xff0000ff.
+  final Color? backgroundColor;
+
+  /// Color from SVG id `outline` — defaults to 0xffff0000.
+  final Color? outlineColor;
+
+  /// Color from SVG id `inner_text` — defaults to 0xff00ff00.
+  final Color? innerTextColor;
+
+  @override
+  double? get svgWidgetWidth => width;
+
+  @override
+  double? get svgWidgetHeight => height;
+
+  @override
+  bool get svgMaintainAspectRatio => maintainAspectRatio;
+
+  @override
+  double get svgNativeWidth => _NestedGroups._svgWidth;
+
+  @override
+  double get svgNativeHeight => _NestedGroups._svgHeight;
+
+  @override
+  double get svgViewBoxWidth => _NestedGroups._viewBoxWidth;
+
+  @override
+  double get svgViewBoxHeight => _NestedGroups._viewBoxHeight;
+
+  @override
+  Widget buildPainter({required double width, required double height}) {
+    return SizedBox.fromSize(
+      size: Size(width, height),
+      child: RepaintBoundary(
+        child: CustomPaint(
+          painter: _NestedGroupsPainter(
+            backgroundColor: backgroundColor ?? const Color(0xff0000ff),
+            outlineColor: outlineColor ?? const Color(0xffff0000),
+            innerTextColor: innerTextColor ?? const Color(0xff00ff00),
+          ),
+          size: Size(width, height),
+        ),
+      ),
+    );
+  }
+}
+
+class _NestedGroupsPainter extends CustomPainter {
+  _NestedGroupsPainter({
+    required this.backgroundColor,
+    required this.outlineColor,
+    required this.innerTextColor,
+  });
+
+  final Color backgroundColor;
+  final Color outlineColor;
+  final Color innerTextColor;
+
+  final Paint _fillPaint = Paint()..style = PaintingStyle.fill;
+
+  static const Rect _rect0 = Rect.fromLTWH(0, 0, 40, 40);
+
+  static const Rect _rect1 = Rect.fromLTWH(0, 0, 32, 32);
+
+  static const Rect _rect2 = Rect.fromLTWH(0, 0, 16, 16);
+
+  static final Path __clip0 = Path()
+    ..addRect(const Rect.fromLTWH(0, 0, 20, 20));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / _NestedGroups._viewBoxWidth;
+    final scaleY = size.height / _NestedGroups._viewBoxHeight;
+    canvas
+      ..save()
+      ..scale(scaleX, scaleY)
+      ..translate(-_NestedGroups._viewBoxMinX, -_NestedGroups._viewBoxMinY);
+
+    canvas.drawRect(_rect0, _fillPaint..color = backgroundColor);
+    canvas.save();
+    canvas.translate(4, 4);
+    canvas.clipPath(__clip0);
+    canvas.drawRect(_rect1, _fillPaint..color = outlineColor);
+    canvas.save();
+    canvas.translate(8, 8);
+    canvas.drawRect(
+      _rect2,
+      _fillPaint..color = _dotdartApplyOpacity(innerTextColor, 0.5),
+    );
+    canvas.restore();
+    canvas.restore();
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _NestedGroupsPainter oldDelegate) {
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.outlineColor != outlineColor ||
+        oldDelegate.innerTextColor != innerTextColor;
   }
 }

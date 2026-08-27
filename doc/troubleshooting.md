@@ -21,6 +21,14 @@ Filenames are normalized to lower camel case and Dart identifiers. Rename the
 source file when the normalized name is unclear. Generation rejects collisions
 instead of silently choosing an accessor.
 
+## An SVG color parameter changed
+
+Regenerate the asset library, then follow Dart analyzer errors or generated API
+completion to update call sites. SVG colors use the drawable's `id`, or its
+nearest ancestor group `id`, before falling back to numbered `color1` names.
+Empty, whitespace-containing, invalid, or duplicate IDs stop generation so the
+generated customization API cannot silently change ownership.
+
 ## Generation reports unsupported content
 
 Check the [asset support reference](asset-support.md). Simplify or re-export the

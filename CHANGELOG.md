@@ -1,3 +1,26 @@
+## 0.10.0
+
+- **BREAKING:** Generated SVG color parameters now use the drawable element's
+  `id`, or its nearest ancestor group `id`, before falling back to `color1`,
+  `color2`, and later names. For example, `id="outline"` produces
+  `outlineColor`. Equal default colors under different IDs remain independently
+  customizable. Regenerate with build_runner, then update analyzer-reported
+  call sites to the new generated names; deprecated aliases are not emitted.
+- SVG IDs must now be non-empty, valid standalone XML IDs, and unique across
+  the document. Distinct IDs that sanitize to the same Dart name receive stable
+  source-order suffixes, with the original SVG ID retained in generated
+  documentation.
+- Fixed SVGs with a UTF-8 byte order mark or a standard leading XML declaration
+  being rejected as though their root element were not `<svg>`. Malformed and
+  unterminated declarations now fail generation explicitly.
+- Fixed nested and sibling SVG groups reusing earlier geometry fields instead
+  of drawing their own paths and shapes. Generated painters now preserve the
+  source geometry, draw order, transforms, clipping, and opacity across nested
+  groups.
+- Stopped generating color controls from group-only presentation attributes
+  that no drawable uses. Anonymous color numbering can therefore change after
+  regeneration.
+
 ## 0.9.0
 
 - **BREAKING:** Generated Lotties now play once by default and keep their final

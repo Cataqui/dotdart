@@ -15,7 +15,8 @@ class XElement {
 ///
 /// Handles elements (opening/closing tags, self-closing), attributes
 /// (double and single quoted), text content, XML comments, CDATA sections,
-/// basic XML entities, numeric entities, and namespace prefix stripping.
+/// basic XML entities, numeric entities, XML declarations, optional byte order
+/// marks, and namespace prefix stripping.
 ///
 /// This parser exists instead of using the `xml` package because the
 /// `xml` package's transitive dependency `petitparser` triggers a Dart
@@ -24,12 +25,43 @@ class XElement {
 class XParser {
   XParser(this._source);
 
+  static final RegExp _xmlDeclaration = RegExp(
+    r'''^<\?xml[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*(?:"1\.[01]"|'1\.[01]')(?:[ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*(?:"[A-Za-z][A-Za-z0-9._-]*"|'[A-Za-z][A-Za-z0-9._-]*'))?(?:[ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*(?:"(?:yes|no)"|'(?:yes|no)'))?[ \t\r\n]*\?>$''',
+  );
+
   final String _source;
   int _pos = 0;
 
   static XElement parse(String xml) {
-    final parser = XParser(xml).._skip();
+    final parser = XParser(xml)
+      .._skipByteOrderMark()
+      .._skipXmlDeclaration()
+      .._skip();
     return parser._parseElement();
+  }
+
+  void _skipByteOrderMark() {
+    if (_source.isNotEmpty && _source.codeUnitAt(0) == 0xFEFF) {
+      _pos++;
+    }
+  }
+
+  void _skipXmlDeclaration() {
+    if (!_source.startsWith('<?xml', _pos)) return;
+    final targetEnd = _pos + '<?xml'.length;
+    if (targetEnd < _source.length) {
+      final next = _source[targetEnd];
+      if (next != ' ' && next != '\t' && next != '\n' && next != '\r' && next != '?') return;
+    }
+    final end = _source.indexOf('?>', targetEnd);
+    if (end == -1) {
+      throw FormatException('Unclosed XML declaration', _source, _pos);
+    }
+    final declaration = _source.substring(_pos, end + 2);
+    if (!_xmlDeclaration.hasMatch(declaration)) {
+      throw FormatException('Malformed XML declaration', _source, _pos);
+    }
+    _pos = end + 2;
   }
 
   void _skip() {

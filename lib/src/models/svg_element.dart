@@ -5,15 +5,18 @@ import 'svg_style.dart';
 /// Every element carries its fully resolved [style] — inheritance from parent
 /// `<g>` elements is already folded in by the parser.
 sealed class SvgElement {
-  const SvgElement({required this.style});
+  const SvgElement({required this.style, this.id});
 
   /// Resolved presentation attributes for this element.
   final SvgStyle style;
+
+  /// Source `id`, when the element declares one.
+  final String? id;
 }
 
 /// A single `<path>` element.
 class SvgPath extends SvgElement {
-  const SvgPath({required super.style, required this.commands});
+  const SvgPath({required super.style, required this.commands, super.id});
 
   /// Absolute path commands for this path's `d` attribute.
   final List<SvgPathCommand> commands;
@@ -25,6 +28,7 @@ class SvgRect extends SvgElement {
     required super.style,
     required this.width,
     required this.height,
+    super.id,
     this.x = 0,
     this.y = 0,
     this.rx = 0,
@@ -43,7 +47,7 @@ class SvgRect extends SvgElement {
 
 /// A `<circle>` element.
 class SvgCircle extends SvgElement {
-  const SvgCircle({required super.style, required this.r, this.cx = 0, this.cy = 0});
+  const SvgCircle({required super.style, required this.r, super.id, this.cx = 0, this.cy = 0});
 
   final double cx;
   final double cy;
@@ -52,7 +56,7 @@ class SvgCircle extends SvgElement {
 
 /// An `<ellipse>` element.
 class SvgEllipse extends SvgElement {
-  const SvgEllipse({required super.style, required this.rx, required this.ry, this.cx = 0, this.cy = 0});
+  const SvgEllipse({required super.style, required this.rx, required this.ry, super.id, this.cx = 0, this.cy = 0});
 
   final double cx;
   final double cy;
@@ -62,7 +66,7 @@ class SvgEllipse extends SvgElement {
 
 /// A `<line>` element.
 class SvgLine extends SvgElement {
-  const SvgLine({required super.style, this.x1 = 0, this.y1 = 0, this.x2 = 0, this.y2 = 0});
+  const SvgLine({required super.style, super.id, this.x1 = 0, this.y1 = 0, this.x2 = 0, this.y2 = 0});
 
   final double x1;
   final double y1;
@@ -72,7 +76,7 @@ class SvgLine extends SvgElement {
 
 /// A `<polyline>` element.
 class SvgPolyline extends SvgElement {
-  const SvgPolyline({required super.style, required this.points});
+  const SvgPolyline({required super.style, required this.points, super.id});
 
   /// Absolute point coordinates `(x, y)`.
   final List<(double, double)> points;
@@ -80,7 +84,7 @@ class SvgPolyline extends SvgElement {
 
 /// A `<polygon>` element.
 class SvgPolygon extends SvgElement {
-  const SvgPolygon({required super.style, required this.points});
+  const SvgPolygon({required super.style, required this.points, super.id});
 
   /// Absolute point coordinates `(x, y)`, automatically closed.
   final List<(double, double)> points;
@@ -88,7 +92,7 @@ class SvgPolygon extends SvgElement {
 
 /// A `<g>` group element.
 class SvgGroup extends SvgElement {
-  const SvgGroup({required super.style, required this.children, this.transform});
+  const SvgGroup({required super.style, required this.children, super.id, this.transform});
 
   /// Ordered list of transform operations, or `null` when identity.
   final List<SvgTransformOp>? transform;

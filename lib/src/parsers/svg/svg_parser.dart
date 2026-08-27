@@ -52,6 +52,7 @@ class SvgParser {
     if (root.tag != 'svg') {
       throw const DotdartInvalidSvgException('Root element must be <svg>.');
     }
+    _validateIds(root);
 
     final viewBox = _parseViewBox(root);
     final width = _parseLength(root.attrs['width']);
@@ -163,7 +164,7 @@ class SvgParser {
     final style = _resolveStyle(element, inherited);
     final transform = _parseTransform(element);
     final children = _parseChildren(element, style);
-    return SvgGroup(style: style, transform: transform, children: children);
+    return SvgGroup(id: element.attrs['id'], style: style, transform: transform, children: children);
   }
 
   SvgPath _parsePath(XElement element, SvgStyle inherited) {
@@ -173,7 +174,7 @@ class SvgParser {
     }
     final commands = SvgPathData.parse(d);
     final style = _resolveStyle(element, inherited);
-    return SvgPath(style: style, commands: commands);
+    return SvgPath(id: element.attrs['id'], style: style, commands: commands);
   }
 
   SvgRect _parseRect(XElement element, SvgStyle inherited) {
@@ -187,7 +188,7 @@ class SvgParser {
     final rx = _parseLength(element.attrs['rx']) ?? 0;
     final ry = _parseLength(element.attrs['ry']) ?? rx;
     final style = _resolveStyle(element, inherited);
-    return SvgRect(style: style, x: x, y: y, width: width, height: height, rx: rx, ry: ry);
+    return SvgRect(id: element.attrs['id'], style: style, x: x, y: y, width: width, height: height, rx: rx, ry: ry);
   }
 
   SvgCircle _parseCircle(XElement element, SvgStyle inherited) {
@@ -196,7 +197,7 @@ class SvgParser {
     final r = _parseLength(element.attrs['r']);
     if (r == null || r <= 0) throw const DotdartInvalidSvgException('<circle> requires positive r.');
     final style = _resolveStyle(element, inherited);
-    return SvgCircle(style: style, cx: cx, cy: cy, r: r);
+    return SvgCircle(id: element.attrs['id'], style: style, cx: cx, cy: cy, r: r);
   }
 
   SvgEllipse _parseEllipse(XElement element, SvgStyle inherited) {
@@ -208,7 +209,7 @@ class SvgParser {
       throw const DotdartInvalidSvgException('<ellipse> requires positive rx and ry.');
     }
     final style = _resolveStyle(element, inherited);
-    return SvgEllipse(style: style, cx: cx, cy: cy, rx: rx, ry: ry);
+    return SvgEllipse(id: element.attrs['id'], style: style, cx: cx, cy: cy, rx: rx, ry: ry);
   }
 
   SvgLine _parseLine(XElement element, SvgStyle inherited) {
@@ -228,21 +229,81 @@ class SvgParser {
       fillOpacity: inherited.fillOpacity,
     );
     final style = _resolveStyle(element, lineStyle);
-    return SvgLine(style: style, x1: x1, y1: y1, x2: x2, y2: y2);
+    return SvgLine(id: element.attrs['id'], style: style, x1: x1, y1: y1, x2: x2, y2: y2);
   }
 
   SvgPolyline _parsePolyline(XElement element, SvgStyle inherited) {
     final points = _parsePoints(element.attrs['points']);
     if (points.isEmpty) throw const DotdartInvalidSvgException('<polyline> requires a "points" attribute.');
     final style = _resolveStyle(element, inherited);
-    return SvgPolyline(style: style, points: points);
+    return SvgPolyline(id: element.attrs['id'], style: style, points: points);
   }
 
   SvgPolygon _parsePolygon(XElement element, SvgStyle inherited) {
     final points = _parsePoints(element.attrs['points']);
     if (points.isEmpty) throw const DotdartInvalidSvgException('<polygon> requires a "points" attribute.');
     final style = _resolveStyle(element, inherited);
-    return SvgPolygon(style: style, points: points);
+    return SvgPolygon(id: element.attrs['id'], style: style, points: points);
+  }
+
+  void _validateIds(XElement root) {
+    final ids = <String>{};
+
+    void visit(XElement element) {
+      final id = element.attrs['id'];
+      if (id != null) {
+        if (id.isEmpty) {
+          throw const DotdartInvalidSvgException('SVG id must not be empty.');
+        }
+        if (!_isValidXmlName(id)) {
+          throw DotdartInvalidSvgException('Invalid SVG id "$id". IDs must be valid XML names.');
+        }
+        if (!ids.add(id)) {
+          throw DotdartInvalidSvgException('Duplicate SVG id "$id". IDs must be unique.');
+        }
+      }
+      element.children.forEach(visit);
+    }
+
+    visit(root);
+  }
+
+  bool _isValidXmlName(String value) {
+    final runes = value.runes.toList();
+    if (runes.isEmpty || !_isXmlNameStartCharacter(runes.first)) return false;
+    for (final rune in runes.skip(1)) {
+      if (!_isXmlNameCharacter(rune)) return false;
+    }
+    return true;
+  }
+
+  bool _isXmlNameStartCharacter(int rune) {
+    return rune == 0x3A ||
+        rune == 0x5F ||
+        (rune >= 0x41 && rune <= 0x5A) ||
+        (rune >= 0x61 && rune <= 0x7A) ||
+        (rune >= 0xC0 && rune <= 0xD6) ||
+        (rune >= 0xD8 && rune <= 0xF6) ||
+        (rune >= 0xF8 && rune <= 0x2FF) ||
+        (rune >= 0x370 && rune <= 0x37D) ||
+        (rune >= 0x37F && rune <= 0x1FFF) ||
+        (rune >= 0x200C && rune <= 0x200D) ||
+        (rune >= 0x2070 && rune <= 0x218F) ||
+        (rune >= 0x2C00 && rune <= 0x2FEF) ||
+        (rune >= 0x3001 && rune <= 0xD7FF) ||
+        (rune >= 0xF900 && rune <= 0xFDCF) ||
+        (rune >= 0xFDF0 && rune <= 0xFFFD) ||
+        (rune >= 0x10000 && rune <= 0xEFFFF);
+  }
+
+  bool _isXmlNameCharacter(int rune) {
+    return _isXmlNameStartCharacter(rune) ||
+        rune == 0x2D ||
+        rune == 0x2E ||
+        rune == 0xB7 ||
+        (rune >= 0x30 && rune <= 0x39) ||
+        (rune >= 0x300 && rune <= 0x36F) ||
+        (rune >= 0x203F && rune <= 0x2040);
   }
 
   static const _defaultStyle = SvgStyle(

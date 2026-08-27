@@ -54,6 +54,16 @@ class _DotdartExamplePageState extends State<DotdartExamplePage> {
           ),
           const SizedBox(height: 16),
           _ExampleCard(
+            label: 'SVG semantic colors and nested groups',
+            child: $Icons.nestedGroups(
+              width: 80,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              outlineColor: Theme.of(context).colorScheme.primary,
+              innerTextColor: Theme.of(context).colorScheme.onPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _ExampleCard(
             label: 'Lottie compiled to CustomPainter',
             child: $Lotties.pulse(
               width: 96,

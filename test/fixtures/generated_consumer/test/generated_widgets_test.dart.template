@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:dotdart_generated_consumer_fixture/gen/icons.g.dart';
 import 'package:dotdart_generated_consumer_fixture/gen/images.g.dart';
 import 'package:dotdart_generated_consumer_fixture/gen/lotties.g.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -86,6 +89,82 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'when a generated SVG has nested transformed and clipped groups, it should preserve rendered pixels',
+      (tester) async {
+        const boundaryKey = ValueKey('nested_groups_boundary');
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: $Icons.nestedGroups(
+                  width: 40,
+                  backgroundColor: Color(0xFF0000FF),
+                  outlineColor: Color(0xFFFF0000),
+                  innerTextColor: Color(0xFF00FF00),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
+        final captured = await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+          return (image, bytes);
+        });
+        final (image, bytes) = captured!;
+        final pixels = bytes!.buffer.asUint8List();
+
+        (int, int, int, int) pixelAt(int x, int y) {
+          final offset = (y * image.width + x) * 4;
+          return (pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]);
+        }
+
+        expect(
+          (pixelAt(1, 1), pixelAt(6, 6), pixelAt(14, 14), pixelAt(26, 6)),
+          equals(((0, 0, 255, 255), (255, 0, 0, 255), (128, 128, 0, 255), (0, 0, 255, 255))),
+        );
+      },
+    );
+
+    testWidgets('when a generated SVG has compound sibling paths, it should preserve both shapes and their holes', (
+      tester,
+    ) async {
+      const boundaryKey = ValueKey('compound_wordmark_boundary');
+      await tester.pumpWidget(
+        Center(
+          child: RepaintBoundary(
+            key: boundaryKey,
+            child: $Icons.compoundWordmark(width: 28, color1: const Color(0xFF5E5E5E)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
+      final captured = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        return (image, bytes);
+      });
+      final (image, bytes) = captured!;
+      final pixels = bytes!.buffer.asUint8List();
+
+      (int, int, int, int) pixelAt(int x, int y) {
+        final offset = (y * image.width + x) * 4;
+        return (pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]);
+      }
+
+      expect(
+        (pixelAt(1, 1), pixelAt(5, 5), pixelAt(17, 1), pixelAt(21, 5)),
+        equals(((94, 94, 94, 255), (0, 0, 0, 0), (94, 94, 94, 255), (0, 0, 0, 0))),
+      );
     });
 
     testWidgets('when precaching without dimensions, it should remove the widget-default entry', (tester) async {
