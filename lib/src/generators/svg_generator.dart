@@ -648,7 +648,7 @@ class SvgGenerator {
 
   void _emitRectField(StringBuffer b, int idx, double x, double y, double w, double h, double rx, double ry) {
     if (rx > 0 || ry > 0) {
-      b.writeln('  static const RRect _rrect$idx = RRect.fromRectAndRadius(');
+      b.writeln('  static final RRect _rrect$idx = RRect.fromRectAndRadius(');
       b.writeln('    Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
       b.writeln('    const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
       b.writeln('  );');
@@ -714,7 +714,7 @@ class SvgGenerator {
           }
         case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
           if (rx > 0 || ry > 0) {
-            b.writeln('    ..addRRect(const RRect.fromRectAndRadius(');
+            b.writeln('    ..addRRect(RRect.fromRectAndRadius(');
             b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}),');
             b.writeln('      const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
             b.writeln('    ))');

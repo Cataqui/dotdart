@@ -233,7 +233,7 @@ void main() {
       expect(code, allOf(contains('strokeWidth = 1.5'), contains('StrokeCap.round'), contains('StrokeJoin.round')));
     });
 
-    test('when generating code with a rect element, it should include a static const RRect', () {
+    test('when generating a rounded rect, it should emit a non-constant RRect', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 50),
         children: [
@@ -243,7 +243,13 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/rect.svg');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('static const RRect _rrect0 = RRect.fromRectAndRadius('));
+      expect(
+        code,
+        allOf(
+          contains('static final RRect _rrect0 = RRect.fromRectAndRadius('),
+          isNot(contains('const RRect.fromRectAndRadius(')),
+        ),
+      );
     });
 
     test('when generating code with a circle element, it should include a static const Rect for the oval', () {
@@ -828,6 +834,33 @@ void main() {
         expect(code, contains('..addRect(const Rect.fromLTWH(0, 0, 28, 20))'));
       },
     );
+
+    test('when generating a rounded rect clip path, it should emit a non-constant RRect', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 28, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(clipPathId: 'c'),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 28, y: 20)],
+              ),
+            ],
+          ),
+        ],
+        clipPaths: {
+          'c': SvgClipPath(
+            id: 'c',
+            children: [SvgRect(style: SvgStyle(), x: 0, y: 0, width: 28, height: 20, rx: 4, ry: 4)],
+          ),
+        },
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(code, contains('..addRRect(RRect.fromRectAndRadius('));
+    });
 
     test('when generating code with a clipped group, it should emit canvas.clipPath in paint()', () {
       const doc = SvgDocument(

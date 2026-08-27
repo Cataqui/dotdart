@@ -1,3 +1,9 @@
+## 0.10.1
+
+- Fixed generated SVGs with rounded rectangles using a non-constant Flutter
+  constructor in a `const` field or clip path expression, which prevented the
+  generated library from analyzing or compiling.
+
 ## 0.10.0
 
 - **BREAKING:** Generated SVG color parameters now use the drawable element's
