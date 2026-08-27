@@ -2,6 +2,7 @@ import 'package:dotdart/src/generators/svg_generator.dart';
 import 'package:dotdart/src/models/svg_document.dart';
 import 'package:dotdart/src/models/svg_element.dart';
 import 'package:dotdart/src/models/svg_style.dart';
+import 'package:dotdart/src/parsers/svg/svg_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -232,7 +233,7 @@ void main() {
       expect(code, allOf(contains('strokeWidth = 1.5'), contains('StrokeCap.round'), contains('StrokeJoin.round')));
     });
 
-    test('when generating code with a rect element, it should include a static final RRect', () {
+    test('when generating code with a rect element, it should include a static const RRect', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 100, height: 50),
         children: [
@@ -242,10 +243,10 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/rect.svg');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('static final RRect _rrect0 = RRect.fromRectAndRadius('));
+      expect(code, contains('static const RRect _rrect0 = RRect.fromRectAndRadius('));
     });
 
-    test('when generating code with a circle element, it should include a static final Rect for the oval', () {
+    test('when generating code with a circle element, it should include a static const Rect for the oval', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
         children: [SvgCircle(style: SvgStyle(fillColor: (0, 0, 0, 1)), cx: 12, cy: 12, r: 10)],
@@ -253,7 +254,7 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/circle.svg');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('static final Rect _ellipseRect0 = Rect.fromCircle('));
+      expect(code, contains('static const Rect _ellipseRect0 = Rect.fromCircle('));
     });
 
     test('when generating code with a group containing transform, it should include canvas save/restore', () {
@@ -299,6 +300,331 @@ void main() {
       final code = generator.generateWidgetClass();
 
       expect(code, isNot(contains('color2')));
+    });
+
+    test('when a drawable has an id, it should use the drawable id for its color name', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            id: 'outline',
+            style: SvgStyle(),
+            children: [
+              SvgPath(
+                id: 'detail',
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+              ),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('final Color? detailColor;'), isNot(contains('outlineColor'))));
+    });
+
+    test('when only the SVG root has an id, it should keep an anonymous color name', () {
+      final parsed = SvgParser.parse(
+        '<svg id="semantic" viewBox="0 0 24 24"><path d="M0 0L24 24" fill="black"/></svg>',
+      );
+      final code = SvgGenerator(parsed.document, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('final Color? color1;'), isNot(contains('semanticColor'))));
+    });
+
+    test('when valid non-ASCII ids have no Dart words, it should suffix their fallback names', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: '画面',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+          ),
+          SvgPath(
+            id: '背景',
+            style: SvgStyle(fillColor: (1, 1, 1, 1)),
+            commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('final Color? svgIdColor;'),
+          contains('final Color? svgIdColor2;'),
+          contains('SVG id `画面`'),
+          contains('SVG id `背景`'),
+        ),
+      );
+    });
+
+    test('when a drawable is unnamed, it should use the nearest group id for its color name', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            id: 'inner_text',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            children: [
+              SvgGroup(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                children: [
+                  SvgPath(
+                    style: SvgStyle(fillColor: (1, 1, 1, 1)),
+                    commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('final Color? innerTextColor;'),
+          contains('SVG id `inner_text`'),
+          isNot(contains('final Color? color1;')),
+        ),
+      );
+    });
+
+    test('when a logo has outline and inner text groups, it should emit only their semantic colors', () {
+      final parsed = SvgParser.parse('''
+<svg id="Layer_1" viewBox="0 0 40 20">
+  <g id="Logo">
+    <g id="Outline" opacity="0.8">
+      <path fill="#1E1E1E" d="M0 0L20 0L20 20L0 20Z"/>
+      <path fill="#1E1E1E" d="M20 0L40 0L40 20L20 20Z"/>
+    </g>
+    <g id="Inner_text">
+      <g><path fill="#FFFFFF" d="M4 4L36 4L36 16L4 16Z"/></g>
+    </g>
+  </g>
+</svg>
+''');
+      final code = SvgGenerator(parsed.document, 'assets/logos/google_maps.svg').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('final Color? outlineColor;'),
+          contains('outlineColor ?? const Color(0xff1e1e1e)'),
+          contains('_dotdartApplyOpacity(outlineColor, 0.8)'),
+          contains('final Color? innerTextColor;'),
+          contains('innerTextColor ?? const Color(0xffffffff)'),
+          isNot(contains('final Color? color1;')),
+        ),
+      );
+    });
+
+    test('when named scopes share a color, it should keep their colors independently customizable', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: 'outline',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+          ),
+          SvgPath(
+            id: 'background',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('outlineColor'), contains('backgroundColor')));
+    });
+
+    test('when a named scope has multiple colors, it should number colors within that scope', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            id: 'artwork',
+            style: SvgStyle(),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (1, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+              ),
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 1, 1)),
+                commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+              ),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('artworkColor1'), contains('artworkColor2')));
+    });
+
+    test('when an id already ends in color, it should append the color suffix only once', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: 'outline-color',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('outlineColor'), isNot(contains('outlineColorColor'))));
+    });
+
+    test('when a camel-case id already ends in Color, it should preserve camel case and append nothing', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: 'outlineColor',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('final Color? outlineColor;'), isNot(contains('outlineColorColor'))));
+    });
+
+    test('when distinct ids normalize to one Dart name, it should suffix the later color name', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: 'inner-text',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+          ),
+          SvgPath(
+            id: 'inner_text',
+            style: SvgStyle(fillColor: (1, 1, 1, 1)),
+            commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(code, allOf(contains('innerTextColor;'), contains('innerTextColor2;')));
+    });
+
+    test('when unnamed drawables repeat a color, it should retain one numeric fallback color', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            id: 'group-only',
+            style: SvgStyle(fillColor: (1, 0, 0, 1)),
+            children: [],
+          ),
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+          ),
+          SvgPath(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/semantic.svg').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(contains('final Color? color1;'), isNot(contains('color2')), isNot(contains('groupOnlyColor'))),
+      );
+    });
+
+    test('when sibling groups contain paths, it should draw every emitted path field once', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            style: SvgStyle(),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 12, y: 12)],
+              ),
+            ],
+          ),
+          SvgGroup(
+            style: SvgStyle(),
+            children: [
+              SvgPath(
+                style: SvgStyle(fillColor: (1, 1, 1, 1)),
+                commands: [SvgMoveTo(x: 12, y: 12), SvgLineTo(x: 24, y: 24)],
+              ),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/groups.svg').generateWidgetClass();
+
+      expect(
+        (
+          RegExp(r'canvas\.drawPath\(__path0,').allMatches(code).length,
+          RegExp(r'canvas\.drawPath\(__path1,').allMatches(code).length,
+        ),
+        (1, 1),
+      );
+    });
+
+    test('when sibling groups contain every geometry type, it should draw each matching field', () {
+      const black = SvgStyle(fillColor: (0, 0, 0, 1), strokeColor: (0, 0, 0, 1));
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgGroup(
+            style: SvgStyle(),
+            children: [
+              SvgRect(style: black, width: 2, height: 2),
+              SvgCircle(style: black, r: 1),
+              SvgLine(style: black, x2: 2, y2: 2),
+              SvgPolygon(style: black, points: [(0, 0), (2, 0), (1, 2)]),
+            ],
+          ),
+          SvgGroup(
+            style: SvgStyle(),
+            children: [
+              SvgRect(style: black, x: 3, width: 2, height: 2),
+              SvgEllipse(style: black, cx: 4, cy: 4, rx: 2, ry: 1),
+              SvgLine(style: black, x1: 3, y1: 3, x2: 5, y2: 5),
+              SvgPolyline(style: black, points: [(3, 3), (5, 3), (4, 5)]),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/groups.svg').generateWidgetClass();
+
+      expect(
+        (
+          code.contains('canvas.drawRect(_rect0'),
+          code.contains('canvas.drawRect(_rect1'),
+          code.contains('canvas.drawOval(_ellipseRect0'),
+          code.contains('canvas.drawOval(_ellipseRect1'),
+          code.contains('canvas.drawPath(__linePath0'),
+          code.contains('canvas.drawPath(__linePath1'),
+          code.contains('canvas.drawPath(__polyPath0'),
+          code.contains('canvas.drawPath(__polyPath1'),
+        ),
+        (true, true, true, true, true, true, true, true),
+      );
     });
 
     test('when generating code with the sizing logic, it should use the shared SVG sizing mixin', () {
@@ -366,6 +692,30 @@ void main() {
       final params = generator.params;
 
       expect(params.any((p) => p.name == 'color1' && p.type == 'Color?'), isTrue);
+    });
+
+    test('when getting semantic color params, it should keep accessor and widget constructor names in parity', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [
+          SvgPath(
+            id: 'outline',
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            commands: [SvgMoveTo(x: 0, y: 0), SvgLineTo(x: 24, y: 24)],
+          ),
+        ],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/icon.svg');
+      final semanticParams = generator.params
+          .where((param) => param.type == 'Color?')
+          .map((param) => param.name)
+          .toList();
+      final code = generator.generateWidgetClass();
+
+      expect(
+        semanticParams.length == 1 && semanticParams.single == 'outlineColor' && code.contains('this.outlineColor,'),
+        isTrue,
+      );
     });
 
     test('when getting params, it should not include color2 when colors are deduplicated', () {
@@ -475,7 +825,7 @@ void main() {
         final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
         final code = generator.generateWidgetClass();
 
-        expect(code, contains('..addRect(Rect.fromLTWH(0, 0, 28, 20))'));
+        expect(code, contains('..addRect(const Rect.fromLTWH(0, 0, 28, 20))'));
       },
     );
 

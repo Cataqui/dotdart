@@ -14,6 +14,7 @@ Supported:
 - translate, scale, and rotate transforms
 - `viewBox` offsets
 - `defs`, `clipPath`, and `clip-path="url(#id)"`
+- an optional UTF-8 byte order mark and standard leading XML declaration
 
 Not supported:
 
@@ -23,8 +24,21 @@ Not supported:
 - arc path commands
 - matrix and skew transforms
 
-Generated SVG accessors expose supported source colors as typed `color1`,
-`color2`, and later parameters.
+Generated SVG accessors expose supported source colors as direct optional
+parameters. A drawable's `id` is used first; an unnamed drawable uses its
+nearest ancestor group `id`. The root `svg` ID does not own colors. IDs are
+sanitized to lower camel case with `Color` appended once, so `inner_text`
+becomes `innerTextColor`. A scope with multiple distinct colors receives
+source-order suffixes such as `outlineColor1` and `outlineColor2`, with fills
+collected before strokes. Equal RGBA values deduplicate only within one scope,
+so identical colors under different IDs remain independently customizable.
+Anonymous colors deduplicate separately and use `color1`, `color2`, and later
+fallbacks.
+
+SVG IDs must be non-empty, contain no whitespace, be valid standalone XML IDs,
+and be unique across the document. If different valid IDs sanitize to the same
+Dart name, the later parameter receives a deterministic numeric suffix. The
+generated Dartdoc records the original SVG ID.
 
 ## Lottie
 

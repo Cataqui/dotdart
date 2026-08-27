@@ -98,6 +98,12 @@ import 'package:my_app/gen/lotties.g.dart';
 import 'package:flutter/material.dart';
 
 final closeIcon = $Icons.close(width: 24);
+final nestedGroups = $Icons.nestedGroups(
+  width: 80,
+  backgroundColor: Colors.blue,
+  outlineColor: Colors.black,
+  innerTextColor: Colors.white,
+);
 final pulse = $Lotties.pulse(
   width: 96,
   delay: const Duration(milliseconds: 300),
@@ -147,6 +153,14 @@ import is needed.
 Supported trim paths preserve animated start, end, and offset values in the
 default drawing direction, including parallel and sequential handling when one
 shape group contains multiple paths.
+
+Supported SVG colors remain direct optional parameters on their generated
+accessors. A drawable `id` names its colors; otherwise dotdart uses the nearest
+ancestor group `id`. For example, `id="outline"` produces `outlineColor`.
+Multiple colors in that scope become `outlineColor1`, `outlineColor2`, and so
+on in fill-before-stroke source order. Equal colors under different IDs stay
+independently customizable. Anonymous colors use `color1`, `color2`, and later
+fallbacks.
 
 ## Generated output
 

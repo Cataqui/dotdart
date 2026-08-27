@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Synthetic compound-path wordmark fixture; no third-party artwork. -->
+<svg viewBox="0 0 28 12" width="28" height="12" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path fill="#5E5E5E" fill-rule="evenodd" d="M0 0L12 0L12 12L0 12Z M3 3L9 3L9 9L3 9Z" />
+    <path fill="#5E5E5E" fill-rule="evenodd" d="M16 0L28 0L28 12L16 12Z M19 3L25 3L25 9L19 9Z" />
+  </g>
+</svg>

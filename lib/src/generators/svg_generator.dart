@@ -13,13 +13,15 @@ import 'naming.dart';
 class SvgGenerator {
   SvgGenerator(this.document, this.sourcePath);
 
+  static final RegExp _identifierWord = RegExp(r'[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+');
+
   final SvgDocument document;
   final String sourcePath;
 
   /// Returns the constructor parameters of the generated SVG widget.
   ///
   /// Used by `NamespaceAssembler` to emit matching accessor methods.
-  List<AccessorParam> get params => _paramsFor(_extractColors());
+  List<AccessorParam> get params => _paramsFor(_buildColorPlan().colors);
 
   List<AccessorParam> _paramsFor(List<_ColorEntry> colors) {
     final result = <AccessorParam>[
@@ -37,11 +39,14 @@ class SvgGenerator {
       ),
     ];
     for (final color in colors) {
+      final sourceDescription = color.sourceId == null
+          ? 'Color ${color.name.substring('color'.length)}'
+          : 'Color from SVG id `${color.sourceId}`';
       result.add(
         AccessorParam(
-          name: 'color${color.index}',
+          name: color.name,
           type: 'Color?',
-          documentation: 'Color ${color.index} — defaults to ${_colorToHex(color.r, color.g, color.b, color.a)}.',
+          documentation: '$sourceDescription — defaults to ${_colorToHex(color.r, color.g, color.b, color.a)}.',
         ),
       );
     }
@@ -54,9 +59,9 @@ class SvgGenerator {
   /// formats the combined file.
   String generateWidgetClass() {
     final b = StringBuffer();
-    final colors = _extractColors();
-    _writeWidgetClass(b, colors);
-    _writePainterClass(b, colors);
+    final colorPlan = _buildColorPlan();
+    _writeWidgetClass(b, colorPlan.colors);
+    _writePainterClass(b, colorPlan);
     return b.toString();
   }
 
@@ -67,31 +72,79 @@ class SvgGenerator {
 
   // ── Color extraction ──
 
-  List<_ColorEntry> _extractColors() {
-    final seen = <String>{};
-    final result = <_ColorEntry>[];
-    var index = 0;
+  ({List<_ColorEntry> colors, Map<SvgElement, ({int? fill, int? stroke})> colorsByElement}) _buildColorPlan() {
+    final colors = <_ColorEntry>[];
+    final colorIndexByScopeAndValue = <(String?, String), int>{};
+    final colorsByElement = <SvgElement, ({int? fill, int? stroke})>{};
 
-    void add((double, double, double, double)? color) {
-      if (color == null) return;
+    int? add((double, double, double, double)? color, String? sourceId) {
+      if (color == null) return null;
+      final key = (sourceId, _colorKey(color));
+      final existing = colorIndexByScopeAndValue[key];
+      if (existing != null) return existing;
+      final index = colors.length;
       final (r, g, b, a) = color;
-      final key = '$r,$g,$b,$a';
-      if (seen.contains(key)) return;
-      seen.add(key);
-      index++;
-      result.add(_ColorEntry(index: index, r: r, g: g, b: b, a: a));
+      colors.add(_ColorEntry(name: '', sourceId: sourceId, r: r, g: g, b: b, a: a));
+      colorIndexByScopeAndValue[key] = index;
+      return index;
     }
 
-    void walk(List<SvgElement> elements) {
+    void walk(List<SvgElement> elements, String? ancestorGroupId) {
       for (final element in elements) {
-        add(element.style.fillColor);
-        add(element.style.strokeColor);
-        if (element is SvgGroup) walk(element.children);
+        if (element case SvgGroup(:final children)) {
+          walk(children, element.id ?? ancestorGroupId);
+          continue;
+        }
+        final sourceId = element.id ?? ancestorGroupId;
+        colorsByElement[element] = (
+          fill: add(element.style.fillColor, sourceId),
+          stroke: add(element.style.strokeColor, sourceId),
+        );
       }
     }
 
-    walk(document.children);
-    return result;
+    walk(document.children, null);
+
+    final countBySourceId = <String, int>{};
+    for (final color in colors) {
+      final sourceId = color.sourceId;
+      if (sourceId != null) countBySourceId.update(sourceId, (count) => count + 1, ifAbsent: () => 1);
+    }
+    final ordinalBySourceId = <String, int>{};
+    final usedNames = {'key', 'width', 'height', 'maintainAspectRatio'};
+    var anonymousOrdinal = 0;
+    final namedColors = <_ColorEntry>[];
+    for (final color in colors) {
+      final sourceId = color.sourceId;
+      String proposedName;
+      if (sourceId == null) {
+        anonymousOrdinal++;
+        proposedName = 'color$anonymousOrdinal';
+      } else {
+        final ordinal = ordinalBySourceId.update(sourceId, (value) => value + 1, ifAbsent: () => 1);
+        final base = _semanticColorBase(sourceId);
+        proposedName = countBySourceId[sourceId] == 1 ? base : '$base$ordinal';
+      }
+      var name = proposedName;
+      var suffix = 2;
+      while (!usedNames.add(name)) {
+        name = '$proposedName$suffix';
+        suffix++;
+      }
+      namedColors.add(color.withName(name));
+    }
+    return (colors: namedColors, colorsByElement: colorsByElement);
+  }
+
+  String _semanticColorBase(String id) {
+    final words = _identifierWord.allMatches(id).map((match) => match.group(0)!).toList();
+    if (words.isEmpty || RegExp('^[0-9]').hasMatch(words.first)) {
+      return 'svgIdColor';
+    }
+    final identifier =
+        words.first.toLowerCase() +
+        words.skip(1).map((word) => '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}').join();
+    return identifier.toLowerCase().endsWith('color') ? identifier : '${identifier}Color';
   }
 
   // ── Widget class ──
@@ -162,7 +215,7 @@ class SvgGenerator {
       b.writeln('          painter: _$painterName' + 'Painter(');
       for (final color in colors) {
         final hex = _colorToHex(color.r, color.g, color.b, color.a);
-        b.writeln('            color${color.index}: color${color.index} ?? const Color($hex),');
+        b.writeln('            ${color.name}: ${color.name} ?? const Color($hex),');
       }
       b.writeln('          ),');
     } else {
@@ -179,20 +232,18 @@ class SvgGenerator {
 
   // ── Painter class ──
 
-  void _writePainterClass(StringBuffer b, List<_ColorEntry> colors) {
+  void _writePainterClass(
+    StringBuffer b,
+    ({List<_ColorEntry> colors, Map<SvgElement, ({int? fill, int? stroke})> colorsByElement}) colorPlan,
+  ) {
     final name = _baseName;
-
-    // Build color lookup: key → index
-    final colorKeyToIndex = <String, int>{};
-    for (final color in colors) {
-      colorKeyToIndex['${color.r},${color.g},${color.b},${color.a}'] = color.index;
-    }
+    final colors = colorPlan.colors;
 
     b.writeln('class _$name' + 'Painter extends CustomPainter {');
     if (colors.isNotEmpty) {
       b.writeln('  _$name' + 'Painter({');
       for (final color in colors) {
-        b.writeln('    required this.color${color.index},');
+        b.writeln('    required this.${color.name},');
       }
       b.writeln('  });');
     } else {
@@ -201,7 +252,7 @@ class SvgGenerator {
     b.writeln();
 
     for (final color in colors) {
-      b.writeln('  final Color color${color.index};');
+      b.writeln('  final Color ${color.name};');
     }
     if (colors.isNotEmpty) b.writeln();
     if (_usesFill(document.children)) {
@@ -219,36 +270,50 @@ class SvgGenerator {
     var ellipseRectIdx = 0;
     var lineIdx = 0;
     var polyIdx = 0;
+    final geometryFieldByElement = <SvgElement, String>{};
 
     void emitGeometry(List<SvgElement> elements) {
       for (final element in elements) {
         switch (element) {
-          case SvgPath(:final commands, :final style):
+          case final SvgPath element:
+            final SvgPath(:commands, :style) = element;
             _emitPathField(b, pathIdx, commands, style.fillRule);
+            geometryFieldByElement[element] = '__path$pathIdx';
             pathIdx++;
-          case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
+          case final SvgRect element:
+            final SvgRect(:x, :y, :width, :height, :rx, :ry) = element;
             _emitRectField(b, rrectIdx, x, y, width, height, rx, ry);
+            geometryFieldByElement[element] = rx > 0 || ry > 0 ? '_rrect$rrectIdx' : '_rect$rrectIdx';
             rrectIdx++;
-          case SvgCircle(:final cx, :final cy, :final r):
+          case final SvgCircle element:
+            final SvgCircle(:cx, :cy, :r) = element;
             b.writeln(
-              '  static final Rect _ellipseRect$ellipseRectIdx = Rect.fromCircle(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)});',
+              '  static const Rect _ellipseRect$ellipseRectIdx = Rect.fromCircle(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)});',
             );
             b.writeln();
+            geometryFieldByElement[element] = '_ellipseRect$ellipseRectIdx';
             ellipseRectIdx++;
-          case SvgEllipse(:final cx, :final cy, :final rx, :final ry):
+          case final SvgEllipse element:
+            final SvgEllipse(:cx, :cy, :rx, :ry) = element;
             b.writeln(
-              '  static final Rect _ellipseRect$ellipseRectIdx = Rect.fromCenter(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)});',
+              '  static const Rect _ellipseRect$ellipseRectIdx = Rect.fromCenter(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)});',
             );
             b.writeln();
+            geometryFieldByElement[element] = '_ellipseRect$ellipseRectIdx';
             ellipseRectIdx++;
           case final SvgLine l:
             _emitLineField(b, lineIdx, l);
+            geometryFieldByElement[l] = '__linePath$lineIdx';
             lineIdx++;
-          case SvgPolyline(:final points):
+          case final SvgPolyline element:
+            final SvgPolyline(:points) = element;
             _emitPolyPathField(b, polyIdx, points, false);
+            geometryFieldByElement[element] = '__polyPath$polyIdx';
             polyIdx++;
-          case SvgPolygon(:final points):
+          case final SvgPolygon element:
+            final SvgPolygon(:points) = element;
             _emitPolyPathField(b, polyIdx, points, true);
+            geometryFieldByElement[element] = '__polyPath$polyIdx';
             polyIdx++;
           case SvgGroup(:final children):
             emitGeometry(children); // recurse — groups don't have their own geometry
@@ -282,21 +347,12 @@ class SvgGenerator {
     b.writeln('      ..translate(-$widgetName._viewBoxMinX, -$widgetName._viewBoxMinY);');
     b.writeln();
 
-    // Emit draw calls with matching counters
-    pathIdx = 0;
-    rrectIdx = 0;
-    ellipseRectIdx = 0;
-    lineIdx = 0;
-    polyIdx = 0;
     _emitDrawCalls(
       b,
       document.children,
-      colorKeyToIndex,
-      pathIdx,
-      rrectIdx,
-      ellipseRectIdx,
-      lineIdx,
-      polyIdx,
+      colors,
+      colorPlan.colorsByElement,
+      geometryFieldByElement,
       clipPathFieldNames,
     );
 
@@ -313,7 +369,7 @@ class SvgGenerator {
       for (var i = 0; i < colors.length; i++) {
         final color = colors[i];
         if (i > 0) b.writeln('        ||');
-        b.writeln('        oldDelegate.color${color.index} != color${color.index}');
+        b.writeln('        oldDelegate.${color.name} != ${color.name}');
       }
       b.writeln(';');
     } else {
@@ -330,20 +386,11 @@ class SvgGenerator {
   void _emitDrawCalls(
     StringBuffer b,
     List<SvgElement> elements,
-    Map<String, int> colorIndex,
-    int pathIdx,
-    int rrectIdx,
-    int ellipseRectIdx,
-    int lineIdx,
-    int polyIdx,
+    List<_ColorEntry> colors,
+    Map<SvgElement, ({int? fill, int? stroke})> colorsByElement,
+    Map<SvgElement, String> geometryFieldByElement,
     Map<String, String> clipPathFieldNames,
   ) {
-    var pIdx = pathIdx;
-    var rIdx = rrectIdx;
-    var eIdx = ellipseRectIdx;
-    var lIdx = lineIdx;
-    var p2Idx = polyIdx;
-
     for (final element in elements) {
       switch (element) {
         case SvgGroup(:final style, :final transform, :final children):
@@ -370,30 +417,52 @@ class SvgGenerator {
           if (hasClip) {
             b.writeln('    canvas.clipPath($clipField);');
           }
-          _emitDrawCalls(b, children, colorIndex, pIdx, rIdx, eIdx, lIdx, p2Idx, clipPathFieldNames);
+          _emitDrawCalls(b, children, colors, colorsByElement, geometryFieldByElement, clipPathFieldNames);
           if (hasTransform || hasClip) b.writeln('    canvas.restore();');
         case SvgPath(:final style):
-          _emitClippedDraw(b, style, () => _emitPathDraw(b, style, pIdx, colorIndex), clipPathFieldNames);
-          pIdx++;
+          _emitClippedDraw(
+            b,
+            style,
+            () => _emitPathDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
+            clipPathFieldNames,
+          );
         case SvgRect(:final style, :final rx, :final ry):
           _emitClippedDraw(
             b,
             style,
-            () => _emitRectDraw(b, style, rIdx, colorIndex, rx > 0 || ry > 0),
+            () => _emitRectDraw(
+              b,
+              style,
+              geometryFieldByElement[element]!,
+              colors,
+              colorsByElement[element]!,
+              rx > 0 || ry > 0,
+            ),
             clipPathFieldNames,
           );
-          rIdx++;
         case SvgCircle(:final style):
         case SvgEllipse(:final style):
-          _emitClippedDraw(b, style, () => _emitEllipseDraw(b, style, eIdx, colorIndex), clipPathFieldNames);
-          eIdx++;
+          _emitClippedDraw(
+            b,
+            style,
+            () => _emitEllipseDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
+            clipPathFieldNames,
+          );
         case SvgLine(:final style):
-          _emitClippedDraw(b, style, () => _emitLineDraw(b, style, lIdx, colorIndex), clipPathFieldNames);
-          lIdx++;
+          _emitClippedDraw(
+            b,
+            style,
+            () => _emitLineDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
+            clipPathFieldNames,
+          );
         case SvgPolyline(:final style):
         case SvgPolygon(:final style):
-          _emitClippedDraw(b, style, () => _emitPolyDraw(b, style, p2Idx, colorIndex), clipPathFieldNames);
-          p2Idx++;
+          _emitClippedDraw(
+            b,
+            style,
+            () => _emitPolyDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
+            clipPathFieldNames,
+          );
       }
     }
   }
@@ -415,107 +484,139 @@ class SvgGenerator {
     }
   }
 
-  void _emitPathDraw(StringBuffer b, SvgStyle style, int idx, Map<String, int> colorIndex) {
+  void _emitPathDraw(
+    StringBuffer b,
+    SvgStyle style,
+    String fieldName,
+    List<_ColorEntry> colors,
+    ({int? fill, int? stroke}) colorIndices,
+  ) {
     final hasFill = style.fillColor != null && style.fillOpacity > 0 && style.opacity > 0;
     final hasStroke = style.strokeColor != null && style.strokeOpacity > 0 && style.opacity > 0;
     if (!hasFill && !hasStroke) return;
 
     if (hasFill) {
-      final fi = colorIndex[_colorKey(style.fillColor!)]!;
       final opacity = _fmt(style.fillOpacity * style.opacity);
-      b.writeln('    canvas.drawPath(__path$idx, ${_colorRef('color$fi', opacity, '_fillPaint')});');
+      b.writeln(
+        '    canvas.drawPath($fieldName, ${_colorRef(colors[colorIndices.fill!].name, opacity, '_fillPaint')});',
+      );
     }
     if (hasStroke) {
-      final si = colorIndex[_colorKey(style.strokeColor!)]!;
       final opacity = _fmt(style.strokeOpacity * style.opacity);
       final cap = _lineCap(style.strokeLineCap);
       final join = _lineJoin(style.strokeLineJoin);
       b.writeln(
-        '    canvas.drawPath(__path$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+        '    canvas.drawPath($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
       );
     }
   }
 
-  void _emitRectDraw(StringBuffer b, SvgStyle style, int idx, Map<String, int> colorIndex, bool rounded) {
+  void _emitRectDraw(
+    StringBuffer b,
+    SvgStyle style,
+    String fieldName,
+    List<_ColorEntry> colors,
+    ({int? fill, int? stroke}) colorIndices,
+    bool rounded,
+  ) {
     final hasFill = style.fillColor != null && style.fillOpacity > 0 && style.opacity > 0;
     final hasStroke = style.strokeColor != null && style.strokeOpacity > 0 && style.opacity > 0;
     if (!hasFill && !hasStroke) return;
 
     if (hasFill) {
-      final fi = colorIndex[_colorKey(style.fillColor!)]!;
       final opacity = _fmt(style.fillOpacity * style.opacity);
       if (rounded) {
-        b.writeln('    canvas.drawRRect(_rrect$idx, ${_colorRef('color$fi', opacity, '_fillPaint')});');
+        b.writeln(
+          '    canvas.drawRRect($fieldName, ${_colorRef(colors[colorIndices.fill!].name, opacity, '_fillPaint')});',
+        );
       } else {
-        b.writeln('    canvas.drawRect(_rect$idx, ${_colorRef('color$fi', opacity, '_fillPaint')});');
+        b.writeln(
+          '    canvas.drawRect($fieldName, ${_colorRef(colors[colorIndices.fill!].name, opacity, '_fillPaint')});',
+        );
       }
     }
     if (hasStroke) {
-      final si = colorIndex[_colorKey(style.strokeColor!)]!;
       final opacity = _fmt(style.strokeOpacity * style.opacity);
       final cap = _lineCap(style.strokeLineCap);
       final join = _lineJoin(style.strokeLineJoin);
       if (rounded) {
         b.writeln(
-          '    canvas.drawRRect(_rrect$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+          '    canvas.drawRRect($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
         );
       } else {
         b.writeln(
-          '    canvas.drawRect(_rect$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+          '    canvas.drawRect($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
         );
       }
     }
   }
 
-  void _emitEllipseDraw(StringBuffer b, SvgStyle style, int idx, Map<String, int> colorIndex) {
+  void _emitEllipseDraw(
+    StringBuffer b,
+    SvgStyle style,
+    String fieldName,
+    List<_ColorEntry> colors,
+    ({int? fill, int? stroke}) colorIndices,
+  ) {
     final hasFill = style.fillColor != null && style.fillOpacity > 0 && style.opacity > 0;
     final hasStroke = style.strokeColor != null && style.strokeOpacity > 0 && style.opacity > 0;
     if (!hasFill && !hasStroke) return;
 
     if (hasFill) {
-      final fi = colorIndex[_colorKey(style.fillColor!)]!;
       final opacity = _fmt(style.fillOpacity * style.opacity);
-      b.writeln('    canvas.drawOval(_ellipseRect$idx, ${_colorRef('color$fi', opacity, '_fillPaint')});');
+      b.writeln(
+        '    canvas.drawOval($fieldName, ${_colorRef(colors[colorIndices.fill!].name, opacity, '_fillPaint')});',
+      );
     }
     if (hasStroke) {
-      final si = colorIndex[_colorKey(style.strokeColor!)]!;
       final opacity = _fmt(style.strokeOpacity * style.opacity);
       final cap = _lineCap(style.strokeLineCap);
       final join = _lineJoin(style.strokeLineJoin);
       b.writeln(
-        '    canvas.drawOval(_ellipseRect$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+        '    canvas.drawOval($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
       );
     }
   }
 
-  void _emitLineDraw(StringBuffer b, SvgStyle style, int idx, Map<String, int> colorIndex) {
+  void _emitLineDraw(
+    StringBuffer b,
+    SvgStyle style,
+    String fieldName,
+    List<_ColorEntry> colors,
+    ({int? fill, int? stroke}) colorIndices,
+  ) {
     if (style.strokeColor == null || style.strokeOpacity <= 0 || style.opacity <= 0) return;
-    final si = colorIndex[_colorKey(style.strokeColor!)]!;
     final opacity = _fmt(style.strokeOpacity * style.opacity);
     final cap = _lineCap(style.strokeLineCap);
     final join = _lineJoin(style.strokeLineJoin);
     b.writeln(
-      '    canvas.drawPath(__linePath$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+      '    canvas.drawPath($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
     );
   }
 
-  void _emitPolyDraw(StringBuffer b, SvgStyle style, int idx, Map<String, int> colorIndex) {
+  void _emitPolyDraw(
+    StringBuffer b,
+    SvgStyle style,
+    String fieldName,
+    List<_ColorEntry> colors,
+    ({int? fill, int? stroke}) colorIndices,
+  ) {
     final hasFill = style.fillColor != null && style.fillOpacity > 0 && style.opacity > 0;
     final hasStroke = style.strokeColor != null && style.strokeOpacity > 0 && style.opacity > 0;
     if (!hasFill && !hasStroke) return;
 
     if (hasFill) {
-      final fi = colorIndex[_colorKey(style.fillColor!)]!;
       final opacity = _fmt(style.fillOpacity * style.opacity);
-      b.writeln('    canvas.drawPath(__polyPath$idx, ${_colorRef('color$fi', opacity, '_fillPaint')});');
+      b.writeln(
+        '    canvas.drawPath($fieldName, ${_colorRef(colors[colorIndices.fill!].name, opacity, '_fillPaint')});',
+      );
     }
     if (hasStroke) {
-      final si = colorIndex[_colorKey(style.strokeColor!)]!;
       final opacity = _fmt(style.strokeOpacity * style.opacity);
       final cap = _lineCap(style.strokeLineCap);
       final join = _lineJoin(style.strokeLineJoin);
       b.writeln(
-        '    canvas.drawPath(__polyPath$idx, ${_strokeColorRef('color$si', opacity, style.strokeWidth, cap, join)});',
+        '    canvas.drawPath($fieldName, ${_strokeColorRef(colors[colorIndices.stroke!].name, opacity, style.strokeWidth, cap, join)});',
       );
     }
   }
@@ -547,12 +648,12 @@ class SvgGenerator {
 
   void _emitRectField(StringBuffer b, int idx, double x, double y, double w, double h, double rx, double ry) {
     if (rx > 0 || ry > 0) {
-      b.writeln('  static final RRect _rrect$idx = RRect.fromRectAndRadius(');
+      b.writeln('  static const RRect _rrect$idx = RRect.fromRectAndRadius(');
       b.writeln('    Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
       b.writeln('    const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
       b.writeln('  );');
     } else {
-      b.writeln('  static final Rect _rect$idx =');
+      b.writeln('  static const Rect _rect$idx =');
       b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)});');
     }
     b.writeln();
@@ -613,20 +714,20 @@ class SvgGenerator {
           }
         case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
           if (rx > 0 || ry > 0) {
-            b.writeln('    ..addRRect(RRect.fromRectAndRadius(');
+            b.writeln('    ..addRRect(const RRect.fromRectAndRadius(');
             b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}),');
             b.writeln('      const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
             b.writeln('    ))');
           } else {
-            b.writeln('    ..addRect(Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}))');
+            b.writeln('    ..addRect(const Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}))');
           }
         case SvgCircle(:final cx, :final cy, :final r):
           b.writeln(
-            '    ..addOval(Rect.fromCircle(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)}))',
+            '    ..addOval(const Rect.fromCircle(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)}))',
           );
         case SvgEllipse(:final cx, :final cy, :final rx, :final ry):
           b.writeln(
-            '    ..addOval(Rect.fromCenter(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)}))',
+            '    ..addOval(const Rect.fromCenter(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)}))',
           );
         case SvgLine():
           break;
@@ -706,26 +807,45 @@ class SvgGenerator {
 
   bool _usesFill(List<SvgElement> elements) {
     for (final element in elements) {
+      if (element is SvgGroup) {
+        if (_usesFill(element.children)) return true;
+        continue;
+      }
       if (element.style.fillColor != null) return true;
-      if (element is SvgGroup && _usesFill(element.children)) return true;
     }
     return false;
   }
 
   bool _usesStroke(List<SvgElement> elements) {
     for (final element in elements) {
+      if (element is SvgGroup) {
+        if (_usesStroke(element.children)) return true;
+        continue;
+      }
       if (element.style.strokeColor != null) return true;
-      if (element is SvgGroup && _usesStroke(element.children)) return true;
     }
     return false;
   }
 }
 
 class _ColorEntry {
-  const _ColorEntry({required this.index, required this.r, required this.g, required this.b, required this.a});
-  final int index;
+  const _ColorEntry({
+    required this.name,
+    required this.sourceId,
+    required this.r,
+    required this.g,
+    required this.b,
+    required this.a,
+  });
+
+  final String name;
+  final String? sourceId;
   final double r;
   final double g;
   final double b;
   final double a;
+
+  _ColorEntry withName(String name) {
+    return _ColorEntry(name: name, sourceId: sourceId, r: r, g: g, b: b, a: a);
+  }
 }
