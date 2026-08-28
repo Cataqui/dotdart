@@ -11,7 +11,8 @@ Supported:
   `polygon`
 - groups and inherited presentation attributes
 - fill, stroke, opacity, fill rule, line cap, and line join
-- translate, scale, and rotate transforms
+- translate, scale, and rotate transforms on groups, drawable shapes, and
+  shapes inside clip paths
 - `viewBox` offsets
 - `defs`, `clipPath`, and `clip-path="url(#id)"`
 - an optional UTF-8 byte order mark and standard leading XML declaration

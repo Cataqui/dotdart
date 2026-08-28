@@ -288,7 +288,7 @@ class SvgGenerator {
           case final SvgCircle element:
             final SvgCircle(:cx, :cy, :r) = element;
             b.writeln(
-              '  static const Rect _ellipseRect$ellipseRectIdx = Rect.fromCircle(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)});',
+              '  static final Rect _ellipseRect$ellipseRectIdx = Rect.fromCircle(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)});',
             );
             b.writeln();
             geometryFieldByElement[element] = '_ellipseRect$ellipseRectIdx';
@@ -296,7 +296,7 @@ class SvgGenerator {
           case final SvgEllipse element:
             final SvgEllipse(:cx, :cy, :rx, :ry) = element;
             b.writeln(
-              '  static const Rect _ellipseRect$ellipseRectIdx = Rect.fromCenter(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)});',
+              '  static final Rect _ellipseRect$ellipseRectIdx = Rect.fromCenter(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)});',
             );
             b.writeln();
             geometryFieldByElement[element] = '_ellipseRect$ellipseRectIdx';
@@ -393,43 +393,24 @@ class SvgGenerator {
   ) {
     for (final element in elements) {
       switch (element) {
-        case SvgGroup(:final style, :final transform, :final children):
-          final hasTransform = transform != null && transform.isNotEmpty;
-          final clipField = clipPathFieldNames[style.clipPathId];
-          final hasClip = clipField != null;
-          if (hasTransform || hasClip) b.writeln('    canvas.save();');
-          for (final op in transform ?? []) {
-            switch (op) {
-              case SvgTranslate(:final tx, :final ty):
-                b.writeln('    canvas.translate(${_fmt(tx)}, ${_fmt(ty)});');
-              case SvgScale(:final sx, :final sy):
-                b.writeln('    canvas.scale(${_fmt(sx)}, ${_fmt(sy)});');
-              case SvgRotate(:final angle, :final cx, :final cy):
-                if (cx != null && cy != null) {
-                  b.writeln(
-                    '    canvas..translate(${_fmt(cx)}, ${_fmt(cy)})..rotate(${_fmt(angle)} * math.pi / 180)..translate(${_fmt(-cx)}, ${_fmt(-cy)});',
-                  );
-                } else {
-                  b.writeln('    canvas.rotate(${_fmt(angle)} * math.pi / 180);');
-                }
-            }
-          }
-          if (hasClip) {
-            b.writeln('    canvas.clipPath($clipField);');
-          }
-          _emitDrawCalls(b, children, colors, colorsByElement, geometryFieldByElement, clipPathFieldNames);
-          if (hasTransform || hasClip) b.writeln('    canvas.restore();');
-        case SvgPath(:final style):
-          _emitClippedDraw(
+        case SvgGroup(:final children):
+          _emitScopedDraw(
             b,
-            style,
+            element,
+            () => _emitDrawCalls(b, children, colors, colorsByElement, geometryFieldByElement, clipPathFieldNames),
+            clipPathFieldNames,
+          );
+        case SvgPath(:final style):
+          _emitScopedDraw(
+            b,
+            element,
             () => _emitPathDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
             clipPathFieldNames,
           );
         case SvgRect(:final style, :final rx, :final ry):
-          _emitClippedDraw(
+          _emitScopedDraw(
             b,
-            style,
+            element,
             () => _emitRectDraw(
               b,
               style,
@@ -442,24 +423,24 @@ class SvgGenerator {
           );
         case SvgCircle(:final style):
         case SvgEllipse(:final style):
-          _emitClippedDraw(
+          _emitScopedDraw(
             b,
-            style,
+            element,
             () => _emitEllipseDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
             clipPathFieldNames,
           );
         case SvgLine(:final style):
-          _emitClippedDraw(
+          _emitScopedDraw(
             b,
-            style,
+            element,
             () => _emitLineDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
             clipPathFieldNames,
           );
         case SvgPolyline(:final style):
         case SvgPolygon(:final style):
-          _emitClippedDraw(
+          _emitScopedDraw(
             b,
-            style,
+            element,
             () => _emitPolyDraw(b, style, geometryFieldByElement[element]!, colors, colorsByElement[element]!),
             clipPathFieldNames,
           );
@@ -467,20 +448,41 @@ class SvgGenerator {
     }
   }
 
-  void _emitClippedDraw(
+  void _emitScopedDraw(
     StringBuffer b,
-    SvgStyle style,
+    SvgElement element,
     void Function() emitDraw,
     Map<String, String> clipPathFieldNames,
   ) {
-    final clipField = clipPathFieldNames[style.clipPathId];
-    if (clipField != null) {
-      b.writeln('    canvas.save();');
+    final transform = element.transform;
+    final hasTransform = transform != null && transform.isNotEmpty;
+    final clipField = clipPathFieldNames[element.style.clipPathId];
+    final hasClip = clipField != null;
+    if (hasTransform || hasClip) b.writeln('    canvas.save();');
+    _emitCanvasTransforms(b, transform ?? []);
+    if (hasClip) {
       b.writeln('    canvas.clipPath($clipField);');
-      emitDraw();
-      b.writeln('    canvas.restore();');
-    } else {
-      emitDraw();
+    }
+    emitDraw();
+    if (hasTransform || hasClip) b.writeln('    canvas.restore();');
+  }
+
+  void _emitCanvasTransforms(StringBuffer b, List<SvgTransformOp> transforms) {
+    for (final op in transforms) {
+      switch (op) {
+        case SvgTranslate(:final tx, :final ty):
+          b.writeln('    canvas.translate(${_fmt(tx)}, ${_fmt(ty)});');
+        case SvgScale(:final sx, :final sy):
+          b.writeln('    canvas.scale(${_fmt(sx)}, ${_fmt(sy)});');
+        case SvgRotate(:final angle, :final cx, :final cy):
+          if (cx != null && cy != null) {
+            b.writeln(
+              '    canvas..translate(${_fmt(cx)}, ${_fmt(cy)})..rotate(${_fmt(angle)} * math.pi / 180)..translate(${_fmt(-cx)}, ${_fmt(-cy)});',
+            );
+          } else {
+            b.writeln('    canvas.rotate(${_fmt(angle)} * math.pi / 180);');
+          }
+      }
     }
   }
 
@@ -649,7 +651,7 @@ class SvgGenerator {
   void _emitRectField(StringBuffer b, int idx, double x, double y, double w, double h, double rx, double ry) {
     if (rx > 0 || ry > 0) {
       b.writeln('  static final RRect _rrect$idx = RRect.fromRectAndRadius(');
-      b.writeln('    Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
+      b.writeln('    const Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(w)}, ${_fmt(h)}),');
       b.writeln('    const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
       b.writeln('  );');
     } else {
@@ -685,6 +687,20 @@ class SvgGenerator {
   // ── Clip path field emission ──
 
   void _emitClipPathField(StringBuffer b, int idx, SvgClipPath clipPath) {
+    if (_hasTransforms(clipPath.children)) {
+      b.writeln('  static final Path __clip$idx = _buildClip$idx();');
+      b.writeln();
+      b.writeln('  static Path _buildClip$idx() {');
+      b.writeln('    final path = Path();');
+      if (clipPath.clipRule == SvgFillRule.evenodd) {
+        b.writeln('    path.fillType = PathFillType.evenOdd;');
+      }
+      _emitTransformedClipPathShapes(b, clipPath.children, const [], 0);
+      b.writeln('    return path;');
+      b.writeln('  }');
+      b.writeln();
+      return;
+    }
     b.writeln('  static final Path __clip$idx = Path()');
     if (clipPath.clipRule == SvgFillRule.evenodd) {
       b.writeln('    ..fillType = PathFillType.evenOdd');
@@ -694,40 +710,109 @@ class SvgGenerator {
     b.writeln();
   }
 
-  void _emitClipPathShapes(StringBuffer b, List<SvgElement> shapes) {
+  bool _hasTransforms(List<SvgElement> elements) {
+    for (final element in elements) {
+      if (element.transform case final transform? when transform.isNotEmpty) return true;
+      if (element case SvgGroup(:final children)) {
+        if (_hasTransforms(children)) return true;
+      }
+    }
+    return false;
+  }
+
+  int _emitTransformedClipPathShapes(
+    StringBuffer b,
+    List<SvgElement> shapes,
+    List<SvgTransformOp> inheritedTransforms,
+    int shapeIndex,
+  ) {
+    var nextShapeIndex = shapeIndex;
+    for (final shape in shapes) {
+      final transforms = [...inheritedTransforms, ...?shape.transform];
+      if (shape case SvgGroup(:final children)) {
+        nextShapeIndex = _emitTransformedClipPathShapes(b, children, transforms, nextShapeIndex);
+        continue;
+      }
+      final localName = 'clipShape$nextShapeIndex';
+      b.writeln('    final $localName = Path()');
+      _emitClipPathShapes(b, [shape], cascadePrefix: '      ..', argumentIndent: '        ');
+      b.writeln('    ;');
+      b.writeln('    path.addPath(');
+      b.writeln('      $localName,');
+      b.writeln('      Offset.zero,');
+      if (transforms.isNotEmpty) {
+        b.writeln('      matrix4: (Matrix4.identity()');
+        _emitMatrixTransforms(b, transforms);
+        b.writeln('          ).storage,');
+      }
+      b.writeln('    );');
+      nextShapeIndex++;
+    }
+    return nextShapeIndex;
+  }
+
+  void _emitMatrixTransforms(StringBuffer b, List<SvgTransformOp> transforms) {
+    for (final transform in transforms) {
+      switch (transform) {
+        case SvgTranslate(:final tx, :final ty):
+          b.writeln('        ..translateByDouble(${_fmt(tx)}, ${_fmt(ty)}, 0, 1)');
+        case SvgScale(:final sx, :final sy):
+          b.writeln('        ..scaleByDouble(${_fmt(sx)}, ${_fmt(sy)}, 1, 1)');
+        case SvgRotate(:final angle, :final cx, :final cy):
+          if (cx != null && cy != null) {
+            b.writeln('        ..translateByDouble(${_fmt(cx)}, ${_fmt(cy)}, 0, 1)');
+            b.writeln('        ..rotateZ(${_fmt(angle)} * math.pi / 180)');
+            b.writeln('        ..translateByDouble(${_fmt(-cx)}, ${_fmt(-cy)}, 0, 1)');
+          } else {
+            b.writeln('        ..rotateZ(${_fmt(angle)} * math.pi / 180)');
+          }
+      }
+    }
+  }
+
+  void _emitClipPathShapes(
+    StringBuffer b,
+    List<SvgElement> shapes, {
+    String cascadePrefix = '    ..',
+    String argumentIndent = '      ',
+  }) {
     for (final shape in shapes) {
       switch (shape) {
         case SvgPath(:final commands):
           for (final cmd in commands) {
             switch (cmd) {
               case SvgMoveTo(:final x, :final y):
-                b.writeln('    ..moveTo(${_fmt(x)}, ${_fmt(y)})');
+                b.writeln('${cascadePrefix}moveTo(${_fmt(x)}, ${_fmt(y)})');
               case SvgLineTo(:final x, :final y):
-                b.writeln('    ..lineTo(${_fmt(x)}, ${_fmt(y)})');
+                b.writeln('${cascadePrefix}lineTo(${_fmt(x)}, ${_fmt(y)})');
               case SvgCubicTo(:final x1, :final y1, :final x2, :final y2, :final x, :final y):
-                b.writeln('    ..cubicTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x2)}, ${_fmt(y2)}, ${_fmt(x)}, ${_fmt(y)})');
+                b.writeln(
+                  '${cascadePrefix}cubicTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x2)}, ${_fmt(y2)}, ${_fmt(x)}, ${_fmt(y)})',
+                );
               case SvgQuadTo(:final x1, :final y1, :final x, :final y):
-                b.writeln('    ..quadraticBezierTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x)}, ${_fmt(y)})');
+                b.writeln('${cascadePrefix}quadraticBezierTo(${_fmt(x1)}, ${_fmt(y1)}, ${_fmt(x)}, ${_fmt(y)})');
               case SvgClosePath():
-                b.writeln('    ..close()');
+                b.writeln('${cascadePrefix}close()');
             }
           }
         case SvgRect(:final x, :final y, :final width, :final height, :final rx, :final ry):
           if (rx > 0 || ry > 0) {
-            b.writeln('    ..addRRect(RRect.fromRectAndRadius(');
-            b.writeln('      Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}),');
-            b.writeln('      const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
-            b.writeln('    ))');
+            b.writeln('${cascadePrefix}addRRect(RRect.fromRectAndRadius(');
+            b.writeln('$argumentIndent  const Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}),');
+            b.writeln('$argumentIndent  const Radius.circular(${_fmt(rx > ry ? rx : ry)}),');
+            b.writeln('$argumentIndent))');
           } else {
-            b.writeln('    ..addRect(const Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}))');
+            b.writeln(
+              '${cascadePrefix}addRect(const Rect.fromLTWH(${_fmt(x)}, ${_fmt(y)}, ${_fmt(width)}, ${_fmt(height)}))',
+            );
           }
         case SvgCircle(:final cx, :final cy, :final r):
           b.writeln(
-            '    ..addOval(const Rect.fromCircle(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)}))',
+            '${cascadePrefix}addOval(Rect.fromCircle(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), radius: ${_fmt(r)}))',
           );
         case SvgEllipse(:final cx, :final cy, :final rx, :final ry):
           b.writeln(
-            '    ..addOval(const Rect.fromCenter(center: Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)}))',
+            '${cascadePrefix}addOval(Rect.fromCenter(center: const Offset(${_fmt(cx)}, ${_fmt(cy)}), width: ${_fmt(rx * 2)}, height: ${_fmt(ry * 2)}))',
           );
         case SvgLine():
           break;
@@ -735,23 +820,23 @@ class SvgGenerator {
           for (var i = 0; i < points.length; i++) {
             final (px, py) = points[i];
             if (i == 0) {
-              b.writeln('    ..moveTo(${_fmt(px)}, ${_fmt(py)})');
+              b.writeln('${cascadePrefix}moveTo(${_fmt(px)}, ${_fmt(py)})');
             } else {
-              b.writeln('    ..lineTo(${_fmt(px)}, ${_fmt(py)})');
+              b.writeln('${cascadePrefix}lineTo(${_fmt(px)}, ${_fmt(py)})');
             }
           }
         case SvgPolygon(:final points):
           for (var i = 0; i < points.length; i++) {
             final (px, py) = points[i];
             if (i == 0) {
-              b.writeln('    ..moveTo(${_fmt(px)}, ${_fmt(py)})');
+              b.writeln('${cascadePrefix}moveTo(${_fmt(px)}, ${_fmt(py)})');
             } else {
-              b.writeln('    ..lineTo(${_fmt(px)}, ${_fmt(py)})');
+              b.writeln('${cascadePrefix}lineTo(${_fmt(px)}, ${_fmt(py)})');
             }
           }
-          b.writeln('    ..close()');
+          b.writeln('${cascadePrefix}close()');
         case SvgGroup(:final children):
-          _emitClipPathShapes(b, children);
+          _emitClipPathShapes(b, children, cascadePrefix: cascadePrefix, argumentIndent: argumentIndent);
       }
     }
   }

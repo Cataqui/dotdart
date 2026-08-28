@@ -1,3 +1,12 @@
+## 0.10.2
+
+- Fixed `translate`, `scale`, and `rotate` transforms being silently ignored on
+  drawable SVG shapes and shapes inside clip paths. Transformed geometry now
+  preserves nested transform order and rotation pivots in generated painters.
+- Fixed generated SVG circles and ellipses using non-constant Flutter
+  constructors in `const` fields or clip path expressions, and kept rounded
+  rectangle geometry warning-free under strict Dart analysis.
+
 ## 0.10.1
 
 - Fixed generated SVGs with rounded rectangles using a non-constant Flutter

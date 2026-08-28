@@ -247,12 +247,13 @@ void main() {
         code,
         allOf(
           contains('static final RRect _rrect0 = RRect.fromRectAndRadius('),
+          contains('const Rect.fromLTWH(10, 10, 80, 30),'),
           isNot(contains('const RRect.fromRectAndRadius(')),
         ),
       );
     });
 
-    test('when generating code with a circle element, it should include a static const Rect for the oval', () {
+    test('when generating code with a circle element, it should emit a non-constant Rect factory', () {
       const doc = SvgDocument(
         viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
         children: [SvgCircle(style: SvgStyle(fillColor: (0, 0, 0, 1)), cx: 12, cy: 12, r: 10)],
@@ -260,7 +261,32 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/circle.svg');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('static const Rect _ellipseRect0 = Rect.fromCircle('));
+      expect(
+        code,
+        allOf(
+          contains('static final Rect _ellipseRect0 = Rect.fromCircle(center: const Offset(12, 12), radius: 10);'),
+          isNot(contains('static const Rect _ellipseRect0 = Rect.fromCircle(')),
+        ),
+      );
+    });
+
+    test('when generating code with an ellipse element, it should emit a non-constant Rect factory', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 24, height: 24),
+        children: [SvgEllipse(style: SvgStyle(fillColor: (0, 0, 0, 1)), cx: 12, cy: 12, rx: 10, ry: 6)],
+      );
+      final generator = SvgGenerator(doc, 'assets/icons/ellipse.svg');
+      final code = generator.generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains(
+            'static final Rect _ellipseRect0 = Rect.fromCenter(center: const Offset(12, 12), width: 20, height: 12);',
+          ),
+          isNot(contains('static const Rect _ellipseRect0 = Rect.fromCenter(')),
+        ),
+      );
     });
 
     test('when generating code with a group containing transform, it should include canvas save/restore', () {
@@ -285,6 +311,97 @@ void main() {
       expect(
         code,
         allOf(contains('canvas.save()'), contains('canvas.translate(10, 20)'), contains('canvas.restore()')),
+      );
+    });
+
+    test('when generating a pivoted drawable rotation, it should transform only that draw call', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 20, height: 20),
+        children: [
+          SvgRect(
+            style: SvgStyle(fillColor: (0, 0, 0, 1)),
+            transform: [SvgRotate(angle: -90, cx: 7.55, cy: 11.5776)],
+            x: 7.55,
+            y: 11.5776,
+            width: 3.4783,
+            height: 5.0932,
+            rx: 1.7391,
+            ry: 1.7391,
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/dumbbell.svg').generateWidgetClass();
+      final save = code.indexOf('canvas.save();');
+      final transform = code.indexOf(
+        'canvas..translate(7.55, 11.5776)..rotate(-90 * math.pi / 180)..translate(-7.55, -11.5776);',
+      );
+      final draw = code.indexOf('canvas.drawRRect(_rrect0, _fillPaint..color = color1);');
+      final restore = code.indexOf('canvas.restore();', draw);
+
+      expect(
+        (save >= 0, save < transform, transform < draw, draw < restore),
+        equals((true, true, true, true)),
+      );
+    });
+
+    test('when generating nested group and drawable transforms, it should preserve their source order', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 20, height: 20),
+        children: [
+          SvgGroup(
+            style: SvgStyle(),
+            transform: [SvgTranslate(tx: 2, ty: 3)],
+            children: [
+              SvgCircle(
+                style: SvgStyle(fillColor: (0, 0, 0, 1)),
+                transform: [SvgScale(sx: 2, sy: 4)],
+                cx: 5,
+                cy: 5,
+                r: 2,
+              ),
+            ],
+          ),
+        ],
+      );
+      final code = SvgGenerator(doc, 'assets/icons/nested-transform.svg').generateWidgetClass();
+      final groupTransform = code.indexOf('canvas.translate(2, 3);');
+      final shapeTransform = code.indexOf('canvas.scale(2, 4);');
+      final draw = code.indexOf('canvas.drawOval(_ellipseRect0, _fillPaint..color = color1);');
+
+      expect(
+        (groupTransform >= 0, groupTransform < shapeTransform, shapeTransform < draw),
+        equals((true, true, true)),
+      );
+    });
+
+    test('when generating a transformed clipped drawable, it should transform before clipping and drawing', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 20, height: 20),
+        children: [
+          SvgRect(
+            style: SvgStyle(fillColor: (0, 0, 0, 1), clipPathId: 'clip'),
+            transform: [SvgTranslate(tx: 4, ty: 5)],
+            width: 10,
+            height: 10,
+          ),
+        ],
+        clipPaths: {
+          'clip': SvgClipPath(
+            id: 'clip',
+            children: [SvgRect(style: SvgStyle(), width: 8, height: 8)],
+          ),
+        },
+      );
+      final code = SvgGenerator(doc, 'assets/icons/transformed-clip.svg').generateWidgetClass();
+      final save = code.indexOf('canvas.save();');
+      final transform = code.indexOf('canvas.translate(4, 5);');
+      final clip = code.indexOf('canvas.clipPath(__clip0);');
+      final draw = code.indexOf('canvas.drawRect(_rect0, _fillPaint..color = color1);');
+      final restore = code.indexOf('canvas.restore();', draw);
+
+      expect(
+        (save >= 0, save < transform, transform < clip, clip < draw, draw < restore),
+        equals((true, true, true, true, true)),
       );
     });
 
@@ -859,8 +976,98 @@ void main() {
       final generator = SvgGenerator(doc, 'assets/icons/clip.svg');
       final code = generator.generateWidgetClass();
 
-      expect(code, contains('..addRRect(RRect.fromRectAndRadius('));
+      expect(
+        code,
+        allOf(
+          contains('..addRRect(RRect.fromRectAndRadius('),
+          contains('const Rect.fromLTWH(0, 0, 28, 20),'),
+        ),
+      );
     });
+
+    test('when generating transformed nested clip shapes, it should compose their transforms in source order', () {
+      const doc = SvgDocument(
+        viewBox: SvgViewBox(minX: 0, minY: 0, width: 20, height: 20),
+        children: [],
+        clipPaths: {
+          'clip': SvgClipPath(
+            id: 'clip',
+            children: [
+              SvgGroup(
+                style: SvgStyle(),
+                transform: [SvgTranslate(tx: 2, ty: 3)],
+                children: [
+                  SvgRect(
+                    style: SvgStyle(),
+                    transform: [SvgRotate(angle: -90, cx: 7.5, cy: 11.5)],
+                    width: 4,
+                    height: 6,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        },
+      );
+      final code = SvgGenerator(doc, 'assets/icons/transformed-clip.svg').generateWidgetClass();
+
+      expect(
+        code,
+        allOf(
+          contains('path.addPath('),
+          contains('Matrix4.identity()'),
+          contains('..translateByDouble(2, 3, 0, 1)'),
+          contains('..translateByDouble(7.5, 11.5, 0, 1)'),
+          contains('..rotateZ(-90 * math.pi / 180)'),
+          contains('..translateByDouble(-7.5, -11.5, 0, 1)'),
+        ),
+      );
+    });
+
+    test(
+      'when generating circle and ellipse clip paths, it should emit non-constant Rect factories with constant centers',
+      () {
+        const doc = SvgDocument(
+          viewBox: SvgViewBox(minX: 0, minY: 0, width: 40, height: 20),
+          children: [
+            SvgGroup(
+              style: SvgStyle(clipPathId: 'circle-clip'),
+              children: [
+                SvgRect(style: SvgStyle(fillColor: (0, 0, 0, 1)), width: 20, height: 20),
+              ],
+            ),
+            SvgGroup(
+              style: SvgStyle(clipPathId: 'ellipse-clip'),
+              children: [
+                SvgRect(style: SvgStyle(fillColor: (0, 0, 0, 1)), x: 20, width: 20, height: 20),
+              ],
+            ),
+          ],
+          clipPaths: {
+            'circle-clip': SvgClipPath(
+              id: 'circle-clip',
+              children: [SvgCircle(style: SvgStyle(), cx: 10, cy: 10, r: 8)],
+            ),
+            'ellipse-clip': SvgClipPath(
+              id: 'ellipse-clip',
+              children: [SvgEllipse(style: SvgStyle(), cx: 30, cy: 10, rx: 8, ry: 5)],
+            ),
+          },
+        );
+        final generator = SvgGenerator(doc, 'assets/icons/oval-clip.svg');
+        final code = generator.generateWidgetClass();
+
+        expect(
+          code,
+          allOf(
+            contains('..addOval(Rect.fromCircle(center: const Offset(10, 10), radius: 8))'),
+            contains('..addOval(Rect.fromCenter(center: const Offset(30, 10), width: 16, height: 10))'),
+            isNot(contains('..addOval(const Rect.fromCircle(')),
+            isNot(contains('..addOval(const Rect.fromCenter(')),
+          ),
+        );
+      },
+    );
 
     test('when generating code with a clipped group, it should emit canvas.clipPath in paint()', () {
       const doc = SvgDocument(

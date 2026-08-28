@@ -174,7 +174,7 @@ class SvgParser {
     }
     final commands = SvgPathData.parse(d);
     final style = _resolveStyle(element, inherited);
-    return SvgPath(id: element.attrs['id'], style: style, commands: commands);
+    return SvgPath(id: element.attrs['id'], style: style, transform: _parseTransform(element), commands: commands);
   }
 
   SvgRect _parseRect(XElement element, SvgStyle inherited) {
@@ -188,7 +188,17 @@ class SvgParser {
     final rx = _parseLength(element.attrs['rx']) ?? 0;
     final ry = _parseLength(element.attrs['ry']) ?? rx;
     final style = _resolveStyle(element, inherited);
-    return SvgRect(id: element.attrs['id'], style: style, x: x, y: y, width: width, height: height, rx: rx, ry: ry);
+    return SvgRect(
+      id: element.attrs['id'],
+      style: style,
+      transform: _parseTransform(element),
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      rx: rx,
+      ry: ry,
+    );
   }
 
   SvgCircle _parseCircle(XElement element, SvgStyle inherited) {
@@ -197,7 +207,7 @@ class SvgParser {
     final r = _parseLength(element.attrs['r']);
     if (r == null || r <= 0) throw const DotdartInvalidSvgException('<circle> requires positive r.');
     final style = _resolveStyle(element, inherited);
-    return SvgCircle(id: element.attrs['id'], style: style, cx: cx, cy: cy, r: r);
+    return SvgCircle(id: element.attrs['id'], style: style, transform: _parseTransform(element), cx: cx, cy: cy, r: r);
   }
 
   SvgEllipse _parseEllipse(XElement element, SvgStyle inherited) {
@@ -209,7 +219,15 @@ class SvgParser {
       throw const DotdartInvalidSvgException('<ellipse> requires positive rx and ry.');
     }
     final style = _resolveStyle(element, inherited);
-    return SvgEllipse(id: element.attrs['id'], style: style, cx: cx, cy: cy, rx: rx, ry: ry);
+    return SvgEllipse(
+      id: element.attrs['id'],
+      style: style,
+      transform: _parseTransform(element),
+      cx: cx,
+      cy: cy,
+      rx: rx,
+      ry: ry,
+    );
   }
 
   SvgLine _parseLine(XElement element, SvgStyle inherited) {
@@ -229,21 +247,29 @@ class SvgParser {
       fillOpacity: inherited.fillOpacity,
     );
     final style = _resolveStyle(element, lineStyle);
-    return SvgLine(id: element.attrs['id'], style: style, x1: x1, y1: y1, x2: x2, y2: y2);
+    return SvgLine(
+      id: element.attrs['id'],
+      style: style,
+      transform: _parseTransform(element),
+      x1: x1,
+      y1: y1,
+      x2: x2,
+      y2: y2,
+    );
   }
 
   SvgPolyline _parsePolyline(XElement element, SvgStyle inherited) {
     final points = _parsePoints(element.attrs['points']);
     if (points.isEmpty) throw const DotdartInvalidSvgException('<polyline> requires a "points" attribute.');
     final style = _resolveStyle(element, inherited);
-    return SvgPolyline(id: element.attrs['id'], style: style, points: points);
+    return SvgPolyline(id: element.attrs['id'], style: style, transform: _parseTransform(element), points: points);
   }
 
   SvgPolygon _parsePolygon(XElement element, SvgStyle inherited) {
     final points = _parsePoints(element.attrs['points']);
     if (points.isEmpty) throw const DotdartInvalidSvgException('<polygon> requires a "points" attribute.');
     final style = _resolveStyle(element, inherited);
-    return SvgPolygon(id: element.attrs['id'], style: style, points: points);
+    return SvgPolygon(id: element.attrs['id'], style: style, transform: _parseTransform(element), points: points);
   }
 
   void _validateIds(XElement root) {
