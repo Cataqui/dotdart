@@ -233,6 +233,43 @@ void main() {
       expect(polygon.points, hasLength(3));
     });
 
+    test('when parsing transforms on supported drawable shapes, it should retain every transform', () {
+      final result = SvgParser.parse('''
+<svg viewBox="0 0 100 100">
+  <path d="M0 0L10 10" transform="translate(1 2)"/>
+  <rect width="10" height="10" transform="scale(2 3)"/>
+  <circle r="5" transform="rotate(45 5 5)"/>
+  <ellipse rx="5" ry="3" transform="translate(4 5)"/>
+  <line x2="10" y2="10" transform="scale(2)"/>
+  <polyline points="0,0 5,5" transform="rotate(30)"/>
+  <polygon points="0,0 5,5 10,0" transform="translate(6 7)"/>
+</svg>
+''');
+
+      expect(
+        result.document.children.map((element) => element.transform?.single.runtimeType),
+        equals([
+          SvgTranslate,
+          SvgScale,
+          SvgRotate,
+          SvgTranslate,
+          SvgScale,
+          SvgRotate,
+          SvgTranslate,
+        ]),
+      );
+    });
+
+    test('when parsing a pivoted drawable rotation, it should retain the angle and pivot', () {
+      final result = SvgParser.parse(
+        '<svg viewBox="0 0 20 20"><rect width="4" height="6" transform="rotate(-90 7.5 11.5)"/></svg>',
+      );
+      final rect = result.document.children.single as SvgRect;
+      final transform = rect.transform!.single as SvgRotate;
+
+      expect((transform.angle, transform.cx, transform.cy), equals((-90, 7.5, 11.5)));
+    });
+
     test('when parsing a group with fill inheritance, children should inherit the fill', () {
       final result = SvgParser.parse('<svg viewBox="0 0 100 100"><g fill="red"><path d="M0 0L100 100"/></g></svg>');
       final group = result.document.children.first as SvgGroup;

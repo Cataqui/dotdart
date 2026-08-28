@@ -1,0 +1,18 @@
+<svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="circle-clip">
+      <circle cx="10" cy="30" r="8"/>
+    </clipPath>
+    <clipPath id="ellipse-clip">
+      <ellipse cx="30" cy="30" rx="8" ry="5"/>
+    </clipPath>
+  </defs>
+  <circle id="circle" cx="10" cy="10" r="8" fill="#FF4A4B"/>
+  <ellipse id="ellipse" cx="30" cy="10" rx="8" ry="5" fill="#4A4BFF"/>
+  <g clip-path="url(#circle-clip)">
+    <rect id="circle-clipped-fill" x="2" y="22" width="16" height="16" fill="#4AFF4B"/>
+  </g>
+  <g clip-path="url(#ellipse-clip)">
+    <rect id="ellipse-clipped-fill" x="22" y="22" width="16" height="16" fill="#FFB84A"/>
+  </g>
+</svg>

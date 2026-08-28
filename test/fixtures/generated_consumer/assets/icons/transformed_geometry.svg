@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Redistributable geometry based on a centered dumbbell and transformed clip. -->
+<svg width="40" height="20" viewBox="0 0 40 20" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="translated_clip">
+      <rect width="20" height="20" transform="translate(20 0)" />
+    </clipPath>
+  </defs>
+  <rect x="3.10559" y="4" width="3.60249" height="11.677" rx="1.80124" />
+  <rect y="5.73913" width="2.36025" height="8.32298" rx="1.18012" />
+  <rect x="17.6397" y="5.73913" width="2.36025" height="8.32298" rx="1.18012" />
+  <rect x="13.44" y="4" width="3.47826" height="11.677" rx="1.73913" />
+  <rect x="7.54999" y="11.5776" width="3.47826" height="5.09317" rx="1.73913" transform="rotate(-90 7.54999 11.5776)" />
+  <rect x="20" width="20" height="20" clip-path="url(#translated_clip)" />
+</svg>
