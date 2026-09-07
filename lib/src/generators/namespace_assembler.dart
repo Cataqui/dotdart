@@ -3,6 +3,7 @@
 // ignore_for_file: cascade_invocations
 
 import 'package:dart_style/dart_style.dart';
+import 'package:path/path.dart' as p;
 
 import 'generated_asset_spec.dart';
 import 'image_generator.dart';
@@ -72,10 +73,10 @@ class NamespaceAssembler {
     if (assets.any((asset) => asset.requiresPathMetrics)) {
       b.writeln("import 'dart:ui' show PathMetric;");
     }
-    b.writeln("import 'package:flutter/material.dart';");
     if (types.contains(DotdartAssetType.svg) || types.contains(DotdartAssetType.lottie)) {
       b.writeln("import 'package:flutter/rendering.dart' show OverflowBoxFit;");
     }
+    b.writeln("import 'package:flutter/widgets.dart';");
     if (types.contains(DotdartAssetType.lottie)) {
       b.writeln("import 'dotdart.g.dart' show LottiePlayback;");
       b.writeln("export 'dotdart.g.dart' show LottiePlayback;");
@@ -118,9 +119,55 @@ class NamespaceAssembler {
     for (final asset in assets) {
       _writeAccessorMethod(b, asset);
     }
+    _writeFindByNameMethod(b);
 
     b.writeln('}');
     b.writeln();
+  }
+
+  void _writeFindByNameMethod(StringBuffer b) {
+    b.writeln('  /// Builds the asset matching [fileName], or returns null if it is absent.');
+    b.writeln('  ///');
+    b.writeln('  /// Pass the original filename, including its extension and exact case.');
+    b.writeln('  /// Directory paths and extensionless names do not match.');
+    b.writeln('  /// [key] is forwarded to the generated widget. [width] and [height] are');
+    b.writeln('  /// logical pixels and use the same sizing rules as the named accessor.');
+    b.writeln('  /// All asset-specific options keep their defaults.');
+    b.writeln('  static Widget? findByName(');
+    b.writeln('    String fileName, {');
+    b.writeln('    Key? key,');
+    b.writeln('    double? width,');
+    b.writeln('    double? height,');
+    b.writeln('  }) => switch (fileName) {');
+    for (final asset in assets) {
+      b.writeln(
+        '    ${_fileNameLiteral(asset.sourcePath)} => '
+        '${asset.accessorName}(key: key, width: width, height: height),',
+      );
+    }
+    b.writeln('    _ => null,');
+    b.writeln('  };');
+    b.writeln();
+  }
+
+  String _fileNameLiteral(String sourcePath) {
+    final escaped = StringBuffer("'");
+    for (final rune in p.posix.basename(sourcePath).runes) {
+      switch (rune) {
+        case 0x5c:
+          escaped.write(r'\\');
+        case 0x27:
+          escaped.write(r"\'");
+        case 0x24:
+          escaped.write(r'\$');
+        case < 0x20 || 0x7f || 0x2028 || 0x2029:
+          escaped.write('\\u${rune.toRadixString(16).padLeft(4, '0')}');
+        default:
+          escaped.writeCharCode(rune);
+      }
+    }
+    escaped.write("'");
+    return escaped.toString();
   }
 
   void _writeCacheClass(StringBuffer b) {

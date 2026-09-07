@@ -1,10 +1,35 @@
 import 'package:dotdart/src/builders/dotdart_namespace_collision_exception.dart';
 import 'package:dotdart/src/builders/generated_namespace_validator.dart';
 import 'package:dotdart/src/generators/generated_asset_spec.dart';
+import 'package:dotdart/src/generators/naming.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('GeneratedNamespaceValidator', () {
+    for (final filename in ['find_by_name.svg', 'find-by-name.json', 'find by name.png']) {
+      test('when $filename claims the lookup method, it should explain how to resolve the collision', () {
+        final asset = GeneratedAssetSpec(
+          sourcePath: 'assets/icons/$filename',
+          accessorName: Naming.accessorName('assets/icons/$filename'),
+          widgetClassName: '_FindByName',
+          params: [],
+          widgetSource: '',
+          assetType: DotdartAssetType.svg,
+        );
+
+        expect(
+          () => GeneratedNamespaceValidator.validate(folderSegment: 'icons', assets: [asset]),
+          throwsA(
+            isA<DotdartNamespaceCollisionException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('assets/icons/$filename'), contains('findByName'), contains('Rename')),
+            ),
+          ),
+        );
+      });
+    }
+
     test('when normalized filenames produce the same accessor, it should reject both source paths', () {
       const assets = [
         GeneratedAssetSpec(

@@ -131,6 +131,19 @@ omitted, the cache methods use the generated widget's default display size.
 Removal preserves an image that is still being displayed while releasing its
 reusable cache entry.
 
+Look up an asset using its original filename when the name is known at runtime:
+
+```dart
+final icon = $Icons.findByName('close.svg', width: 24) ??
+    const SizedBox.shrink();
+```
+
+`findByName` matches the exact filename, including its extension and case,
+within that namespace. Unknown names and directory paths return `null`.
+It accepts `key`, `width`, and `height`, preserving the selected asset's
+existing sizing rules and defaults. Use the named accessor for asset-specific
+options such as colors, animation progress, or image fitting.
+
 Supported Lottie text and colors become fields on the generated `overrides`
 object.
 Repeated names receive numbered suffixes, such as `jobTitleText2`, so each layer

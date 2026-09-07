@@ -10,6 +10,13 @@ class GeneratedNamespaceValidator {
     final classNames = <String, String>{};
     final publicNames = <String, String>{};
     for (final asset in assets) {
+      if (asset.accessorName == 'findByName') {
+        throw DotdartNamespaceCollisionException(
+          '"${asset.sourcePath}" produces "findByName", which is reserved for '
+          'filename lookup in namespace "$folderSegment". Rename the source '
+          'asset and regenerate, then update calls to its named accessor.',
+        );
+      }
       _claim(
         names: classNames,
         name: asset.widgetClassName,

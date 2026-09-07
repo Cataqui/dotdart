@@ -79,6 +79,19 @@ void main() {
   );
 
   group('NamespaceAssembler', () {
+    test('when assembling lookup, it should document matching and sizing behavior', () {
+      final code = NamespaceAssembler(namespaceName: 'Icons', folderSegment: 'icons', assets: [crossAsset]).assemble();
+
+      expect(
+        code,
+        allOf(
+          contains('static Widget? findByName('),
+          contains('including its extension and exact case'),
+          contains('_ => null'),
+        ),
+      );
+    });
+
     test('when a generated asset uses trim paths, it should import Flutter path metrics', () {
       final assembler = NamespaceAssembler(namespaceName: 'Lotties', folderSegment: 'lotties', assets: [trimPathAsset]);
 
@@ -107,7 +120,8 @@ void main() {
         code,
         allOf(
           contains("import 'dart:math' as math;"),
-          contains("import 'package:flutter/material.dart';"),
+          contains("import 'package:flutter/widgets.dart';"),
+          isNot(contains('package:flutter/material.dart')),
           contains("import 'package:flutter/rendering.dart' show OverflowBoxFit;"),
         ),
       );
