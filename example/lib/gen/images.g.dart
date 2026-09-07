@@ -7,7 +7,7 @@
 // Generated canvas and paint sequences intentionally use repeated receiver calls.
 // ignore_for_file: cascade_invocations, unused_element, unused_element_parameter
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// Paints a thumbhash placeholder on a [CustomPainter] canvas.
 class _DotdartThumbhashPainter extends CustomPainter {
@@ -107,6 +107,23 @@ abstract final class $Images {
     color: color,
     colorBlendMode: colorBlendMode,
   );
+
+  /// Builds the asset matching [fileName], or returns null if it is absent.
+  ///
+  /// Pass the original filename, including its extension and exact case.
+  /// Directory paths and extensionless names do not match.
+  /// [key] is forwarded to the generated widget. [width] and [height] are
+  /// logical pixels and use the same sizing rules as the named accessor.
+  /// All asset-specific options keep their defaults.
+  static Widget? findByName(
+    String fileName, {
+    Key? key,
+    double? width,
+    double? height,
+  }) => switch (fileName) {
+    'cataqui.png' => cataqui(key: key, width: width, height: height),
+    _ => null,
+  };
 }
 
 /// Manages Flutter image-cache entries for `images/`.

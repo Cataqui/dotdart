@@ -1,3 +1,9 @@
+## 0.11.0
+
+- Generated assets now import Flutter widgets instead of Material.
+
+- Added exact filename lookup through generated namespace `findByName` methods.
+
 ## 0.10.2
 
 - Fixed `translate`, `scale`, and `rotate` transforms being silently ignored on

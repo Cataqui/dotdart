@@ -64,6 +64,11 @@ class _DotdartExamplePageState extends State<DotdartExamplePage> {
           ),
           const SizedBox(height: 16),
           _ExampleCard(
+            label: 'SVG by filename',
+            child: $Icons.findByName('cross.svg', width: 64) ?? const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 16),
+          _ExampleCard(
             label: 'Lottie compiled to CustomPainter',
             child: $Lotties.pulse(
               width: 96,

@@ -15,6 +15,66 @@ void main() {
         ..clearLiveImages();
     });
 
+    for (final fileName in ['missing.svg', 'FIXTURE_ICON.svg', 'fixture_icon', 'assets/icons/fixture_icon.svg', '']) {
+      test('when looking up "$fileName", it should return null', () {
+        expect($Icons.findByName(fileName), isNull);
+      });
+    }
+
+    final assets =
+        <
+          ({
+            String fileName,
+            Widget Function({Key? key, double? width, double? height}) direct,
+            Widget? Function(String fileName, {Key? key, double? width, double? height}) lookup,
+          })
+        >[
+          (fileName: 'fixture_icon.svg', direct: $Icons.fixtureIcon, lookup: $Icons.findByName),
+          (fileName: 'lottie.json', direct: $Icons.lottie, lookup: $Icons.findByName),
+          (fileName: 'photo.png', direct: $Icons.photo, lookup: $Icons.findByName),
+          (fileName: 'fixture_animation.json', direct: $Lotties.fixtureAnimation, lookup: $Lotties.findByName),
+          (fileName: 'landscape.png', direct: $Images.landscape, lookup: $Images.findByName),
+          (fileName: 'portrait.png', direct: $Images.portrait, lookup: $Images.findByName),
+          (fileName: 'animated.gif', direct: $Images.animated, lookup: $Images.findByName),
+        ];
+    for (final asset in assets) {
+      for (final dimensions in <({double? width, double? height})>[
+        (width: null, height: null),
+        (width: 80, height: null),
+        (width: null, height: 60),
+        (width: 80, height: 60),
+      ]) {
+        testWidgets(
+          'when looking up ${asset.fileName} at $dimensions, it should preserve the direct widget and layout',
+          (tester) async {
+            const directKey = ValueKey('direct');
+            const lookupKey = ValueKey('lookup');
+            final direct = asset.direct(key: directKey, width: dimensions.width, height: dimensions.height);
+            final lookedUp = asset.lookup(
+              asset.fileName,
+              key: lookupKey,
+              width: dimensions.width,
+              height: dimensions.height,
+            )!;
+            await tester.pumpWidget(
+              MaterialApp(
+                home: SingleChildScrollView(child: Column(children: [direct, lookedUp])),
+              ),
+            );
+            // Lookup retains automatic Lottie/GIF playback; sample a deliberate frame.
+            await tester.pump(const Duration(milliseconds: 100));
+            final directSize = tester.getSize(find.byWidget(direct));
+            final lookupSize = tester.getSize(find.byWidget(lookedUp));
+
+            expect(
+              (lookedUp.runtimeType, lookedUp.key, lookupSize, lookupSize.isFinite, tester.takeException()),
+              (direct.runtimeType, lookupKey, directSize, true, null),
+            );
+          },
+        );
+      }
+    }
+
     testWidgets('when generated vector and image accessors render together, it should paint without errors', (
       tester,
     ) async {

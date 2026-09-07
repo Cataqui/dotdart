@@ -8,8 +8,8 @@
 // ignore_for_file: cascade_invocations, unused_element, unused_element_parameter
 
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import 'package:flutter/widgets.dart';
 
 Color _dotdartApplyOpacity(Color color, double opacity) {
   if (opacity == 1) return color;
@@ -127,6 +127,24 @@ abstract final class $Icons {
     outlineColor: outlineColor,
     innerTextColor: innerTextColor,
   );
+
+  /// Builds the asset matching [fileName], or returns null if it is absent.
+  ///
+  /// Pass the original filename, including its extension and exact case.
+  /// Directory paths and extensionless names do not match.
+  /// [key] is forwarded to the generated widget. [width] and [height] are
+  /// logical pixels and use the same sizing rules as the named accessor.
+  /// All asset-specific options keep their defaults.
+  static Widget? findByName(
+    String fileName, {
+    Key? key,
+    double? width,
+    double? height,
+  }) => switch (fileName) {
+    'cross.svg' => cross(key: key, width: width, height: height),
+    'nested_groups.svg' => nestedGroups(key: key, width: width, height: height),
+    _ => null,
+  };
 }
 
 /// A dotdart-generated SVG widget from `assets/icons/cross.svg`.

@@ -10,8 +10,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show PathMetric;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import 'package:flutter/widgets.dart';
 import 'dotdart.g.dart' show LottiePlayback;
 export 'dotdart.g.dart' show LottiePlayback;
 
@@ -306,6 +306,29 @@ abstract final class $Lotties {
     respectDisableAnimations: respectDisableAnimations,
     overrides: overrides,
   );
+
+  /// Builds the asset matching [fileName], or returns null if it is absent.
+  ///
+  /// Pass the original filename, including its extension and exact case.
+  /// Directory paths and extensionless names do not match.
+  /// [key] is forwarded to the generated widget. [width] and [height] are
+  /// logical pixels and use the same sizing rules as the named accessor.
+  /// All asset-specific options keep their defaults.
+  static Widget? findByName(
+    String fileName, {
+    Key? key,
+    double? width,
+    double? height,
+  }) => switch (fileName) {
+    'cataqui_job_cards_carousel.json' => cataquiJobCardsCarousel(
+      key: key,
+      width: width,
+      height: height,
+    ),
+    'pulse.json' => pulse(key: key, width: width, height: height),
+    'trim_path.json' => trimPath(key: key, width: width, height: height),
+    _ => null,
+  };
 }
 
 /// Text and color values that replace defaults in `cataqui_job_cards_carousel.json`.
